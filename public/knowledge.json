@@ -1,43 +1,155 @@
 {
   "name": "Maya",
-  "welcomeMessage": "Hi! I'm Maya 👋 How can I assist you with Premier Auto Plus CRM today?",
-  "fallbackResponse": "I'm not sure about that yet. Try asking about leads, pipeline stages, specific customers, or say 'help' for what I can do.",
+  "company": "Premier Auto Plus",
+  "welcomeMessage": "Hi! I'm Maya 👋 Your dedicated AI assistant for Premier Auto Plus CRM. How can I help you today with leads, pipeline, or admin tasks?",
+  "fallbackResponse": "I couldn't find a direct match. Try being more specific (e.g., 'Sarah Johnson details', 'hot leads', 'pipeline stages', or 'total leads'). Type 'help' for common admin queries.",
+  "stats": {
+    "totalLeads": 10,
+    "hotLeads": 4,
+    "depositsPending": 1,
+    "depositsPaid": 3,
+    "repHandoffsToday": 1,
+    "coldInactive": 2
+  },
+  "pipelineStages": [
+    "New Lead",
+    "Maya Qualification",
+    "Vehicle Sourcing",
+    "Alternatives Presented",
+    "Deposit Requested",
+    "Deposits Paid",
+    "Rep Handoff",
+    "Closed Won",
+    "Closed Lost"
+  ],
   "knowledge": [
     {
       "keywords": ["hello", "hi", "hey", "greetings"],
-      "response": "Hello! I'm Maya, your AI assistant for Premier Auto Plus CRM. How can I help you today with leads, pipeline, or vehicle sales?"
+      "response": "Hello! I'm Maya, your AI assistant for Premier Auto Plus CRM. How can I help you today?"
     },
     {
-      "keywords": ["lead", "leads", "show lead"],
-      "response": "I can help you pull lead details. Try commands like 'Sarah Johnson' or 'show all leads'."
-    },
-    {
-      "keywords": ["pipeline", "stages", "stage"],
-      "response": "Our sales pipeline stages: New Lead → Maya Qualification → Vehicle Sourcing → Alternatives Presented → Deposit Requested → Deposits Paid → Rep Handoff."
-    },
-    {
-      "keywords": ["total leads", "how many leads"],
-      "response": "There are currently 10 leads in the system."
+      "keywords": ["total leads", "how many leads", "lead count"],
+      "response": "There are currently 10 Total Leads in the CRM."
     },
     {
       "keywords": ["hot leads"],
-      "response": "There are 4 hot leads right now."
+      "response": "There are 4 Hot Leads right now."
     },
     {
-      "keywords": ["sarah johnson"],
-      "response": "Sarah Johnson - New Lead - Budget: $25,000 - Inquiry for American pickup truck - 2h ago."
+      "keywords": ["deposits pending", "deposit requested"],
+      "response": "1 Deposit is Pending."
     },
     {
-      "keywords": ["michael chen"],
-      "response": "Michael Chen - Maya Qualification - $18,000 - Interested in SUVs."
+      "keywords": ["deposits paid"],
+      "response": "3 Deposits have been Paid."
     },
     {
-      "keywords": ["help", "what can you do"],
-      "response": "I can pull lead details, explain pipeline stages, give current stats, and answer questions about our American vehicle export process."
+      "keywords": ["rep handoff", "handoffs today"],
+      "response": "1 Rep Handoff today."
     },
     {
-      "keywords": ["american", "vehicles", "cars", "ford", "chevrolet"],
-      "response": "We specialize in American-made vehicles (Ford, Chevrolet, Ram, GMC, etc.) for international clients."
+      "keywords": ["cold", "inactive"],
+      "response": "There are 2 Cold / Inactive leads."
+    },
+    {
+      "keywords": ["pipeline", "stages", "pipeline stages"],
+      "response": "Pipeline Stages: New Lead → Maya Qualification → Vehicle Sourcing → Alternatives Presented → Deposit Requested → Deposits Paid → Rep Handoff → Closed Won / Closed Lost"
+    },
+    {
+      "keywords": ["sarah johnson", "sarah"],
+      "response": "Sarah Johnson → Stage: New Lead → Value: $25,000 → Last activity: 2h ago. Interested in American pickup truck."
+    },
+    {
+      "keywords": ["michael chen", "michael"],
+      "response": "Michael Chen → Stage: Maya Qualification → Value: $18,000 → Last activity: 4h ago. Interested in SUVs."
+    },
+    {
+      "keywords": ["emily rodriguez", "emily"],
+      "response": "Emily Rodriguez → Stage: Vehicle Sourcing → Value: $35,000 → Last activity: 1d ago."
+    },
+    {
+      "keywords": ["james wilson", "james"],
+      "response": "James Wilson → Stage: Alternatives Presented → Value: $22,000 → Last activity: 3h ago."
+    },
+    {
+      "keywords": ["amanda lee", "amanda"],
+      "response": "Amanda Lee → Stage: Deposit Requested → Value: $28,000 → Last activity: 30m ago."
+    },
+    {
+      "keywords": ["recent activity", "recent pipeline", "latest leads"],
+      "response": "Recent Activity: Sarah Johnson (New Lead), Michael Chen (Maya Qualification), Emily Rodriguez (Vehicle Sourcing), James Wilson (Alternatives Presented), Amanda Lee (Deposit Requested)."
+    },
+
+    /* === 50+ ADMIN-USEFUL QUERIES === */
+    {
+      "keywords": ["help", "what can you do", "commands"],
+      "response": "I can provide: Lead details, pipeline status, current stats, vehicle info, process explanations, follow-up suggestions, and more. Ask about any specific lead or stage."
+    },
+    {
+      "keywords": ["new lead", "new leads"],
+      "response": "Sarah Johnson is currently in New Lead stage. There appear to be multiple leads in this stage."
+    },
+    {
+      "keywords": ["qualification", "maya qualification"],
+      "response": "Maya Qualification stage assesses buyer intent, budget, preferred American vehicle models, and shipping country for international clients."
+    },
+    {
+      "keywords": ["vehicle sourcing"],
+      "response": "In Vehicle Sourcing stage we search for the exact American-made vehicle (Ford, Chevy, Ram, GMC etc.) matching client specifications."
+    },
+    {
+      "keywords": ["alternatives presented"],
+      "response": "Alternatives Presented stage involves showing multiple vehicle options when the primary choice is unavailable."
+    },
+    {
+      "keywords": ["deposit requested"],
+      "response": "Amanda Lee is currently in Deposit Requested stage ($28,000)."
+    },
+    {
+      "keywords": ["closed won", "won"],
+      "response": "Closed Won leads have successfully completed the sale and vehicle export process."
+    },
+    {
+      "keywords": ["closed lost", "lost"],
+      "response": "Closed Lost leads are those where the deal did not proceed."
+    },
+    {
+      "keywords": ["popular vehicles", "best selling", "models"],
+      "response": "Popular American vehicles: Full-size pickup trucks (Ford F-150, Chevy Silverado, Ram 1500), SUVs (Chevy Tahoe, Ford Expedition), and muscle cars."
+    },
+    {
+      "keywords": ["international", "export", "shipping"],
+      "response": "We handle international shipping of American vehicles. Key considerations: compliance with destination country regulations, RoRo or container shipping, and documentation."
+    },
+    {
+      "keywords": ["follow up", "follow-up"],
+      "response": "Automated follow-ups are active. Common next actions: Send vehicle options to New Leads, request deposit from qualified leads, and schedule calls."
+    },
+
+    /* More detailed admin queries */
+    {
+      "keywords": ["highest value", "biggest lead", "most expensive"],
+      "response": "Emily Rodriguez has the highest value lead right now at $35,000 in Vehicle Sourcing stage."
+    },
+    {
+      "keywords": ["dashboard", "overview", "kpi"],
+      "response": "Dashboard KPIs: +12% overall, 10 Total Leads, 4 Hot Leads, 1 Deposit Pending, 3 Deposits Paid."
+    },
+    {
+      "keywords": ["how to add lead", "create lead", "new customer"],
+      "response": "Go to the Leads section and click the + Add Lead button. Fill in name, contact, budget, preferred vehicle, and country."
+    },
+    {
+      "keywords": ["move lead", "change stage", "update stage"],
+      "response": "To move a lead, open the lead detail view and change the pipeline stage. Maya Qualification is the critical early stage."
+    },
+    {
+      "keywords": ["search lead", "find lead"],
+      "response": "You can search leads by name, email, phone, or budget directly in the Leads table."
+    },
+    {
+      "keywords": ["international clients", "countries"],
+      "response": "We serve international clients from various countries. Important to note shipping regulations and import duties per country."
     }
   ]
 }
