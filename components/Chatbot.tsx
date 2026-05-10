@@ -33,42 +33,48 @@ export default function Chatbot() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Force fresh fetch with timestamp (bypasses cache)
+  // Load knowledge.json with maximum cache busting
   useEffect(() => {
-    const timestamp = Date.now();
-    
-    fetch(`/knowledge.json?t=${timestamp}`, {
-      cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-      },
-    })
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((data: KnowledgeBase) => {
+    const loadKnowledge = async () => {
+      const timestamp = new Date().getTime();
+      
+      try {
+        const res = await fetch(`/knowledge.json?t=${timestamp}`, {
+          method: 'GET',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          },
+          cache: 'no-store'
+        });
+
+        if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+
+        const data: KnowledgeBase = await res.json();
+
         setKnowledge(data);
         setStatus("success");
-        
+
         setMessages([{
           id: 'welcome',
-          text: data.welcomeMessage || "Hi! I'm Maya 👋 How can I help you today?",
+          text: data.welcomeMessage,
           isBot: true,
           timestamp: new Date()
         }]);
-      })
-      .catch(err => {
-        console.error("Fetch error:", err);
+      } catch (error) {
+        console.error("Fetch failed:", error);
         setStatus("error");
         setMessages([{
           id: 'welcome',
-          text: "Hi! I'm Maya. Could not load knowledge.json. Please hard refresh the page.",
+          text: "Hi! I'm Maya. Could not load knowledge.json. Try redeploying on Vercel.",
           isBot: true,
           timestamp: new Date()
         }]);
-      });
+      }
+    };
+
+    loadKnowledge();
   }, []);
 
   const scrollToBottom = () => {
@@ -86,16 +92,18 @@ export default function Chatbot() {
   }, [isOpen]);
 
   const getBotResponse = (userMessage: string): string => {
-    if (!knowledge) return "Still loading knowledge base...";
+    if (status !== "success" || !knowledge) {
+      return "Knowledge base is still loading. Please wait...";
+    }
 
     const lowerMsg = userMessage.toLowerCase().trim();
 
     for (const item of knowledge.knowledge) {
-      if (item.keywords.some(kw => lowerMsg.includes(kw.toLowerCase()))) {
+      if (item.keywords.some(keyword => lowerMsg.includes(keyword.toLowerCase()))) {
         return item.response;
       }
     }
-    return knowledge.fallbackResponse || "I couldn't find a direct answer. Try asking about specific leads like Sarah Johnson.";
+    return knowledge.fallbackResponse;
   };
 
   const handleSend = () => {
@@ -143,8 +151,7 @@ export default function Chatbot() {
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 md:inset-auto md:bottom-24 md:right-6 md:w-[380px] md:h-[520px] 
-                        bg-white dark:bg-gray-900 z-[110] flex flex-col shadow-2xl md:rounded-2xl overflow-hidden">
+        <div className="fixed inset-0 md:inset-auto md:bottom-24 md:right-6 md:w-[380px] md:h-[520px] bg-white dark:bg-gray-900 z-[110] flex flex-col shadow-2xl md:rounded-2xl overflow-hidden">
           
           <div className="bg-blue-600 text-white p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -162,10 +169,8 @@ export default function Chatbot() {
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}>
-                <div className={`max-w-[82%] px-4 py-3 rounded-3xl text-[15px]
-                  ${msg.isBot 
-                    ? 'bg-white border border-gray-200 text-gray-900 rounded-tl-none' 
-                    : 'bg-blue-600 text-white rounded-tr-none'}`}>
+                <div className={`max-w-[82%] px-4 py-3 rounded-3xl text-[15px] leading-relaxed
+                  ${msg.isBot ? 'bg-white border text-gray-900 rounded-tl-none' : 'bg-blue-600 text-white rounded-tr-none'}`}>
                   {msg.text}
                 </div>
               </div>
@@ -173,9 +178,7 @@ export default function Chatbot() {
 
             {isTyping && (
               <div className="flex justify-start">
-                <div className="bg-white px-4 py-3 rounded-3xl rounded-tl-none">
-                  Maya is typing...
-                </div>
+                <div className="bg-white px-4 py-3 rounded-3xl rounded-tl-none">Maya is typing...</div>
               </div>
             )}
             <div ref={messagesEndRef} />
@@ -189,13 +192,13 @@ export default function Chatbot() {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Type message (e.g. Sarah Johnson)"
+                placeholder="Ask about leads or pipeline..."
                 className="flex-1 px-5 py-3.5 bg-gray-100 border rounded-full focus:outline-none"
               />
               <button
                 onClick={handleSend}
                 disabled={!inputValue.trim()}
-                className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center"
+                className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center disabled:bg-gray-400"
               >
                 <Send size={22} />
               </button>
