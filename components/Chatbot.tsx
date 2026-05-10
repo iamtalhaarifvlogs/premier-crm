@@ -1,4 +1,3 @@
-// components/Chatbot.tsx
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -11,192 +10,132 @@ interface Message {
   timestamp: Date;
 }
 
-interface KnowledgeEntry {
-  keywords: string[];
-  response: string;
-}
-
-const knowledgeBase: KnowledgeEntry[] = [
-  {
-    keywords: ['hello', 'hi', 'hey', 'greetings'],
-    response: "Hello! I'm Maya, your AI assistant for Premier Auto Plus CRM. How can I help you today with leads, pipeline, or vehicle sales?"
-  },
-  {
-    keywords: ['lead', 'leads'],
-    response: "I can help you with leads. Try commands like 'show lead Sarah Johnson' or ask about total leads (currently 10 in the demo)."
-  },
-  {
-    keywords: ['pipeline', 'stage', 'stages'],
-    response: "Our sales pipeline stages: New Lead → Maya Qualification → Vehicle Sourcing → Alternatives Presented → Deposit Requested → Deposits Paid → Rep Handoff."
-  },
-  {
-    keywords: ['maya qualification'],
-    response: "Maya Qualification is an early pipeline stage where we assess buyer intent, budget, and preferred American-made vehicles for international clients."
-  },
-  {
-    keywords: ['total leads', 'how many leads'],
-    response: "There are currently 10 total leads in the system."
-  },
-  {
-    keywords: ['hot leads'],
-    response: "There are 4 hot leads right now."
-  },
-  {
-    keywords: ['deposit'],
-    response: "Deposits Pending: 1 | Deposits Paid: 3"
-  },
-  {
-    keywords: ['american', 'vehicles', 'cars', 'models'],
-    response: "Premier Auto Plus specializes in American-made vehicles (Ford, Chevrolet, Dodge, GMC, etc.) for international buyers. Popular models include trucks, SUVs, and muscle cars."
-  },
-  {
-    keywords: ['help', 'what can you do'],
-    response: "I can: Pull lead details, explain pipeline stages, answer sales process questions, provide stats from the dashboard, and assist with general CRM navigation."
-  },
-  {
-    keywords: ['sarah johnson'],
-    response: "Sarah Johnson - New Lead - $25,000 - 2h ago. Status: New inquiry for American pickup truck."
-  },
-  {
-    keywords: ['michael chen'],
-    response: "Michael Chen - Maya Qualification - $18,000 - 4h ago."
-  },
-  {
-    keywords: ['emily rodriguez'],
-    response: "Emily Rodriguez - Vehicle Sourcing - $35,000 - 1d ago."
-  },
-  // Add more specific lead entries as needed
+const knowledgeBase = [
+  { keywords: ['hello', 'hi', 'hey'], response: "Hello! I'm Maya, your AI assistant for Premier Auto Plus CRM. How can I help you today?" },
+  { keywords: ['lead', 'leads'], response: "I can pull lead details. Try saying 'show lead Sarah Johnson' or ask for total leads." },
+  { keywords: ['pipeline', 'stage'], response: "Pipeline Stages: New Lead → Maya Qualification → Vehicle Sourcing → Alternatives Presented → Deposit Requested → Deposits Paid → Rep Handoff." },
+  { keywords: ['total leads', 'how many'], response: "There are currently 10 leads in the system." },
+  { keywords: ['help'], response: "I can help with leads, pipeline status, vehicle information, and general CRM questions." },
+  // Add more entries as needed
 ];
 
-const getBotResponse = (userMessage: string): string => {
-  const lowerMsg = userMessage.toLowerCase().trim();
+const getBotResponse = (message: string): string => {
+  const lowerMsg = message.toLowerCase().trim();
   
-  // Simple keyword matching with fallback
   for (const entry of knowledgeBase) {
-    if (entry.keywords.some(keyword => lowerMsg.includes(keyword))) {
+    if (entry.keywords.some(kw => lowerMsg.includes(kw))) {
       return entry.response;
     }
   }
-
-  // More specific or general fallbacks
-  if (lowerMsg.includes('show') && lowerMsg.includes('lead')) {
-    return "Lead lookup coming soon! In full integration, I would fetch real-time data. For demo: Sarah Johnson is in New Lead stage.";
-  }
-
-  if (lowerMsg.includes('how are you') || lowerMsg.includes('status')) {
-    return "I'm running smoothly and ready to help close more deals at Premier Auto Plus!";
-  }
-
-  return "I'm not sure about that yet. Try asking about leads, pipeline stages, dashboard stats, or specific customers like 'Sarah Johnson'. I can also explain our process for selling American vehicles internationally.";
+  
+  return "I'm here to help! Try asking about leads, pipeline stages, or specific customers.";
 };
 
 export default function Chatbot() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: '1',
-      text: "Hi! I'm Maya, your Premier Auto Plus CRM assistant. Ask me anything about leads, pipeline, or vehicle sales!",
+      id: 'welcome',
+      text: "Hi! I'm Maya 👋 How can I assist you with Premier Auto Plus CRM today?",
       isBot: true,
       timestamp: new Date()
     }
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!inputValue.trim()) return;
 
-    const userMessage: Message = {
+    const userMsg: Message = {
       id: Date.now().toString(),
       text: inputValue.trim(),
       isBot: false,
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    const currentInput = inputValue.trim();
+    setMessages(prev => [...prev, userMsg]);
+    const currentText = inputValue.trim();
     setInputValue('');
-    
-    // Simulate typing
     setIsTyping(true);
 
     setTimeout(() => {
-      const botResponseText = getBotResponse(currentInput);
-      
-      const botMessage: Message = {
+      const botReply = getBotResponse(currentText);
+      const botMsg: Message = {
         id: (Date.now() + 1).toString(),
-        text: botResponseText,
+        text: botReply,
         isBot: true,
         timestamp: new Date()
       };
-      
-      setMessages(prev => [...prev, botMessage]);
+      setMessages(prev => [...prev, botMsg]);
       setIsTyping(false);
-    }, 800); // Realistic response delay
+    }, 700);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSend();
-    }
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') handleSend();
   };
 
   return (
     <>
-      {/* Floating Bubble Button */}
+      {/* Floating Bubble */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-xl z-50 transition-all duration-200"
-        aria-label="Open Maya Chatbot"
+        onClick={() => setIsOpen(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-2xl z-[100] transition-all active:scale-95"
       >
-        {isOpen ? <X size={28} /> : <MessageCircle size={28} />}
+        <MessageCircle size={28} />
       </button>
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-full max-w-[380px] md:w-[380px] h-[520px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl flex flex-col overflow-hidden z-50">
+        <div className="fixed inset-0 md:inset-auto md:bottom-24 md:right-6 md:w-[380px] md:h-[520px] 
+                        bg-white dark:bg-gray-900 z-[110] flex flex-col 
+                        shadow-2xl md:rounded-2xl overflow-hidden">
+          
           {/* Header */}
           <div className="bg-blue-600 text-white p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-2xl">
                 👋
               </div>
               <div>
-                <div className="font-semibold">Maya</div>
-                <div className="text-xs text-blue-100">Premier Auto Plus Assistant • Online</div>
+                <p className="font-semibold text-lg">Maya</p>
+                <p className="text-xs text-blue-100">Premier Auto Plus Assistant • Online</p>
               </div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white">
-              <X size={20} />
+            
+            <button 
+              onClick={() => setIsOpen(false)}
+              className="p-2 hover:bg-blue-700 rounded-full transition-colors"
+            >
+              <X size={24} />
             </button>
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 p-4 overflow-y-auto bg-gray-50 dark:bg-gray-950 space-y-4" id="chat-messages">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-950" id="chat-messages">
             {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}
-              >
-                <div
-                  className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                    msg.isBot 
-                      ? 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100' 
-                      : 'bg-blue-600 text-white'
-                  }`}
+              <div key={msg.id} className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}>
+                <div className={`max-w-[82%] px-4 py-3 rounded-3xl text-[15px] leading-relaxed
+                  ${msg.isBot 
+                    ? 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-tl-none' 
+                    : 'bg-blue-600 text-white rounded-tr-none'}`}
                 >
                   {msg.text}
-                  <div className="text-[10px] mt-1 opacity-70 text-right">
+                  <div className="text-[10px] mt-1 opacity-75 text-right">
                     {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
@@ -205,11 +144,11 @@ export default function Chatbot() {
 
             {isTyping && (
               <div className="flex justify-start">
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-2xl">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                <div className="bg-white dark:bg-gray-800 px-4 py-3 rounded-3xl rounded-tl-none">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150" />
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-300" />
                   </div>
                 </div>
               </div>
@@ -218,7 +157,7 @@ export default function Chatbot() {
           </div>
 
           {/* Input Area */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+          <div className="p-4 border-t bg-white dark:bg-gray-900">
             <div className="flex gap-2">
               <input
                 ref={inputRef}
@@ -227,17 +166,16 @@ export default function Chatbot() {
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask about leads, pipeline..."
-                className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-full text-sm focus:outline-none focus:border-blue-500 text-gray-900 dark:text-gray-100 placeholder:text-gray-500"
+                className="flex-1 px-5 py-3 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-full focus:outline-none focus:border-blue-500 text-gray-900 dark:text-gray-100 placeholder:text-gray-500"
               />
               <button
                 onClick={handleSend}
                 disabled={!inputValue.trim()}
-                className="w-11 h-11 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-full flex items-center justify-center transition-colors"
+                className="w-12 h-12 bg-blue-600 disabled:bg-gray-400 text-white rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors"
               >
-                <Send size={20} />
+                <Send size={22} />
               </button>
             </div>
-            <p className="text-center text-[10px] text-gray-500 mt-2">Maya can help with CRM tasks • Demo Mode</p>
           </div>
         </div>
       )}
