@@ -28,86 +28,74 @@ export default function Chatbot() {
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [knowledge, setKnowledge] = useState<KnowledgeBase | null>(null);
-  const [loadError, setLoadError] = useState(false);
+  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Load knowledge.json - Optimized for Vercel
+  // Force fresh fetch with timestamp (bypasses cache)
   useEffect(() => {
-    const loadKnowledge = async () => {
-      try {
-        const res = await fetch('/knowledge.json', {
-          method: 'GET',
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-          },
-          cache: 'no-store',
-        });
-
+    const timestamp = Date.now();
+    
+    fetch(`/knowledge.json?t=${timestamp}`, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+    })
+      .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-        const data: KnowledgeBase = await res.json();
-        
+        return res.json();
+      })
+      .then((data: KnowledgeBase) => {
         setKnowledge(data);
-        setLoadError(false);
-
-        setMessages([{
-          id: 'welcome',
-          text: data.welcomeMessage || "Hi! I'm Maya 👋 How can I assist you with Premier Auto Plus CRM today?",
-          isBot: true,
-          timestamp: new Date()
-        }]);
-      } catch (err) {
-        console.error("Knowledge.json failed to load:", err);
-        setLoadError(true);
+        setStatus("success");
         
         setMessages([{
           id: 'welcome',
-          text: "Hi! I'm Maya. Please make sure knowledge.json is in the /public folder and redeploy.",
+          text: data.welcomeMessage || "Hi! I'm Maya 👋 How can I help you today?",
           isBot: true,
           timestamp: new Date()
         }]);
-      }
-    };
-
-    loadKnowledge();
+      })
+      .catch(err => {
+        console.error("Fetch error:", err);
+        setStatus("error");
+        setMessages([{
+          id: 'welcome',
+          text: "Hi! I'm Maya. Could not load knowledge.json. Please hard refresh the page.",
+          isBot: true,
+          timestamp: new Date()
+        }]);
+      });
   }, []);
 
   const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  // Auto focus input when chat opens
   useEffect(() => {
     if (isOpen && inputRef.current) {
-      setTimeout(() => inputRef.current?.focus(), 400);
+      setTimeout(() => inputRef.current?.focus(), 300);
     }
   }, [isOpen]);
 
   const getBotResponse = (userMessage: string): string => {
-    if (!knowledge) {
-      return "Knowledge base is still loading. Please try again in a moment.";
-    }
+    if (!knowledge) return "Still loading knowledge base...";
 
     const lowerMsg = userMessage.toLowerCase().trim();
 
     for (const item of knowledge.knowledge) {
-      if (item.keywords.some(keyword => 
-        lowerMsg.includes(keyword.toLowerCase())
-      )) {
+      if (item.keywords.some(kw => lowerMsg.includes(kw.toLowerCase()))) {
         return item.response;
       }
     }
-
-    return knowledge.fallbackResponse || "I couldn't find a direct match. Try asking about a specific lead (e.g. Sarah Johnson) or pipeline.";
+    return knowledge.fallbackResponse || "I couldn't find a direct answer. Try asking about specific leads like Sarah Johnson.";
   };
 
   const handleSend = () => {
@@ -147,69 +135,53 @@ export default function Chatbot() {
 
   return (
     <>
-      {/* Floating Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-2xl z-[100] transition-all active:scale-95"
+        className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-2xl z-[100]"
       >
         <MessageCircle size={28} />
       </button>
 
-      {/* Chat Window */}
       {isOpen && (
         <div className="fixed inset-0 md:inset-auto md:bottom-24 md:right-6 md:w-[380px] md:h-[520px] 
                         bg-white dark:bg-gray-900 z-[110] flex flex-col shadow-2xl md:rounded-2xl overflow-hidden">
           
-          {/* Header */}
           <div className="bg-blue-600 text-white p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-2xl">👋</div>
               <div>
                 <p className="font-semibold text-lg">Maya</p>
-                <p className="text-xs text-blue-100">Premier Auto Plus Assistant • Online</p>
+                <p className="text-xs text-blue-100">Premier Auto Plus Assistant</p>
               </div>
             </div>
-            <button 
-              onClick={() => setIsOpen(false)}
-              className="p-2 hover:bg-blue-700 rounded-full transition-colors"
-            >
+            <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-blue-700 rounded-full">
               <X size={24} />
             </button>
           </div>
 
-          {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-950">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}>
-                <div className={`max-w-[82%] px-4 py-3 rounded-3xl text-[15px] leading-relaxed
+                <div className={`max-w-[82%] px-4 py-3 rounded-3xl text-[15px]
                   ${msg.isBot 
-                    ? 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-tl-none' 
-                    : 'bg-blue-600 text-white rounded-tr-none'}`}
-                >
+                    ? 'bg-white border border-gray-200 text-gray-900 rounded-tl-none' 
+                    : 'bg-blue-600 text-white rounded-tr-none'}`}>
                   {msg.text}
-                  <div className="text-[10px] mt-1 opacity-70 text-right">
-                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </div>
                 </div>
               </div>
             ))}
 
             {isTyping && (
               <div className="flex justify-start">
-                <div className="bg-white dark:bg-gray-800 px-4 py-3 rounded-3xl rounded-tl-none">
-                  <div className="flex gap-1.5">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
-                  </div>
+                <div className="bg-white px-4 py-3 rounded-3xl rounded-tl-none">
+                  Maya is typing...
                 </div>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
-          <div className="p-4 border-t bg-white dark:bg-gray-900">
+          <div className="p-4 border-t">
             <div className="flex gap-2">
               <input
                 ref={inputRef}
@@ -217,13 +189,13 @@ export default function Chatbot() {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask about Sarah Johnson, pipeline..."
-                className="flex-1 px-5 py-3.5 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-full focus:outline-none focus:border-blue-500 text-gray-900 dark:text-gray-100 placeholder:text-gray-500"
+                placeholder="Type message (e.g. Sarah Johnson)"
+                className="flex-1 px-5 py-3.5 bg-gray-100 border rounded-full focus:outline-none"
               />
               <button
                 onClick={handleSend}
                 disabled={!inputValue.trim()}
-                className="w-12 h-12 bg-blue-600 disabled:bg-gray-400 text-white rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors"
+                className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center"
               >
                 <Send size={22} />
               </button>
