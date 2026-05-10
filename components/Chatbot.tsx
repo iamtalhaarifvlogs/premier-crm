@@ -28,6 +28,7 @@ export default function Chatbot() {
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [knowledge, setKnowledge] = useState<KnowledgeBase | null>(null);
+  const [loadingKnowledge, setLoadingKnowledge] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -35,53 +36,63 @@ export default function Chatbot() {
   // Load knowledge.json
   useEffect(() => {
     fetch('/knowledge.json')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load knowledge');
+        return res.json();
+      })
       .then((data: KnowledgeBase) => {
         setKnowledge(data);
-        
-        // Set welcome message
         setMessages([{
           id: 'welcome',
-          text: data.welcomeMessage,
+          text: data.welcomeMessage || "Hi! I'm Maya 👋 How can I help you today?",
           isBot: true,
           timestamp: new Date()
         }]);
       })
       .catch(err => {
-        console.error("Failed to load knowledge.json", err);
-        // Fallback welcome
+        console.error("Knowledge.json load error:", err);
         setMessages([{
           id: 'welcome',
-          text: "Hi! I'm Maya - Premier Auto Plus Assistant. How can I help you?",
+          text: "Hi! I'm Maya. Knowledge base failed to load, but I can still help. Try refreshing.",
           isBot: true,
           timestamp: new Date()
         }]);
-      });
+      })
+      .finally(() => setLoadingKnowledge(false));
   }, []);
 
   const scrollToBottom = () => {
-    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
+  // Auto-focus input when chat opens
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      setTimeout(() => inputRef.current?.focus(), 300);
+    }
+  }, [isOpen]);
+
   const getBotResponse = (userMessage: string): string => {
-    if (!knowledge) return "I'm still loading my knowledge base...";
+    if (!knowledge) return "I'm still loading my knowledge base. Please wait a moment.";
 
     const lowerMsg = userMessage.toLowerCase().trim();
 
     for (const item of knowledge.knowledge) {
-      if (item.keywords.some(keyword => lowerMsg.includes(keyword.toLowerCase()))) {
+      if (item.keywords.some(keyword => 
+        lowerMsg.includes(keyword.toLowerCase())
+      )) {
         return item.response;
       }
     }
-    return knowledge.fallbackResponse;
+    return knowledge.fallbackResponse || "I don't have an answer for that yet. Try asking about leads or pipeline.";
   };
 
   const handleSend = () => {
-    if (!inputValue.trim() || !knowledge) return;
+    if (!inputValue.trim()) return;
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -93,23 +104,30 @@ export default function Chatbot() {
     setMessages(prev => [...prev, userMsg]);
     const currentText = inputValue.trim();
     setInputValue('');
+    
     setIsTyping(true);
 
+    // Simulate thinking time + typing indicator
     setTimeout(() => {
       const botReply = getBotResponse(currentText);
+      
       const botMsg: Message = {
         id: (Date.now() + 1).toString(),
         text: botReply,
         isBot: true,
         timestamp: new Date()
       };
+      
       setMessages(prev => [...prev, botMsg]);
       setIsTyping(false);
     }, 650);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') handleSend();
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   return (
@@ -133,7 +151,7 @@ export default function Chatbot() {
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-2xl">👋</div>
               <div>
                 <p className="font-semibold text-lg">Maya</p>
-                <p className="text-xs text-blue-100">Premier Auto Plus Assistant • Online</p>
+                <p className="text-xs text-blue-100">Premier Auto Plus Assistant</p>
               </div>
             </div>
             <button 
@@ -144,7 +162,7 @@ export default function Chatbot() {
             </button>
           </div>
 
-          {/* Messages */}
+          {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-950">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}>
@@ -161,13 +179,14 @@ export default function Chatbot() {
               </div>
             ))}
 
+            {/* Typing Indicator */}
             {isTyping && (
               <div className="flex justify-start">
                 <div className="bg-white dark:bg-gray-800 px-4 py-3 rounded-3xl rounded-tl-none">
-                  <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-300"></div>
+                  <div className="flex gap-1.5">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
                   </div>
                 </div>
               </div>
@@ -184,17 +203,19 @@ export default function Chatbot() {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask about leads, pipeline..."
-                className="flex-1 px-5 py-3 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-full focus:outline-none focus:border-blue-500 text-gray-900 dark:text-gray-100 placeholder:text-gray-500"
+                placeholder="Type a message... (e.g. Sarah Johnson)"
+                className="flex-1 px-5 py-3.5 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-full focus:outline-none focus:border-blue-500 text-gray-900 dark:text-gray-100 placeholder:text-gray-500"
+                disabled={loadingKnowledge}
               />
               <button
                 onClick={handleSend}
-                disabled={!inputValue.trim()}
+                disabled={!inputValue.trim() || loadingKnowledge}
                 className="w-12 h-12 bg-blue-600 disabled:bg-gray-400 text-white rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors"
               >
                 <Send size={22} />
               </button>
             </div>
+            <p className="text-center text-[10px] text-gray-500 mt-2">Press Enter to send • Maya v1.0</p>
           </div>
         </div>
       )}
