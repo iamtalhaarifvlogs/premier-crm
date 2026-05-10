@@ -1,34 +1,43 @@
 {
   "name": "Maya",
-  "company": "Premier Auto Plus",
-  "description": "AI Assistant for Vehicle Sales CRM",
-  "pipelineStages": [
-    "New Lead",
-    "Maya Qualification",
-    "Vehicle Sourcing",
-    "Alternatives Presented",
-    "Deposit Requested",
-    "Deposits Paid",
-    "Rep Handoff"
-  ],
-  "stats": {
-    "totalLeads": 10,
-    "hotLeads": 4,
-    "depositsPending": 1,
-    "depositsPaid": 3
-  },
-  "faqs": [
+  "welcomeMessage": "Hi! I'm Maya 👋 How can I assist you with Premier Auto Plus CRM today?",
+  "fallbackResponse": "I'm not sure about that yet. Try asking about leads, pipeline stages, specific customers, or say 'help' for what I can do.",
+  "knowledge": [
     {
-      "question": "What vehicles do we sell?",
-      "answer": "American-made vehicles including Ford, Chevrolet, Ram, GMC for international clients."
-    }
-  ],
-  "sampleLeads": [
+      "keywords": ["hello", "hi", "hey", "greetings"],
+      "response": "Hello! I'm Maya, your AI assistant for Premier Auto Plus CRM. How can I help you today with leads, pipeline, or vehicle sales?"
+    },
     {
-      "name": "Sarah Johnson",
-      "stage": "New Lead",
-      "value": 25000,
-      "time": "2h ago"
+      "keywords": ["lead", "leads", "show lead"],
+      "response": "I can help you pull lead details. Try commands like 'Sarah Johnson' or 'show all leads'."
+    },
+    {
+      "keywords": ["pipeline", "stages", "stage"],
+      "response": "Our sales pipeline stages: New Lead → Maya Qualification → Vehicle Sourcing → Alternatives Presented → Deposit Requested → Deposits Paid → Rep Handoff."
+    },
+    {
+      "keywords": ["total leads", "how many leads"],
+      "response": "There are currently 10 leads in the system."
+    },
+    {
+      "keywords": ["hot leads"],
+      "response": "There are 4 hot leads right now."
+    },
+    {
+      "keywords": ["sarah johnson"],
+      "response": "Sarah Johnson - New Lead - Budget: $25,000 - Inquiry for American pickup truck - 2h ago."
+    },
+    {
+      "keywords": ["michael chen"],
+      "response": "Michael Chen - Maya Qualification - $18,000 - Interested in SUVs."
+    },
+    {
+      "keywords": ["help", "what can you do"],
+      "response": "I can pull lead details, explain pipeline stages, give current stats, and answer questions about our American vehicle export process."
+    },
+    {
+      "keywords": ["american", "vehicles", "cars", "ford", "chevrolet"],
+      "response": "We specialize in American-made vehicles (Ford, Chevrolet, Ram, GMC, etc.) for international clients."
     }
   ]
 }
