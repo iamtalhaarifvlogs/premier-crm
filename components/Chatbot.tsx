@@ -1,6 +1,5 @@
 'use client';
 
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, X, MessageCircle } from 'lucide-react';
 
@@ -17,65 +16,48 @@ interface KnowledgeItem {
 }
 
 interface KnowledgeBase {
-  name: string;
   welcomeMessage: string;
   fallbackResponse: string;
   knowledge: KnowledgeItem[];
 }
+
+// Built-in knowledge (mirrors your knowledge.json)
+const embeddedKnowledge: KnowledgeBase = {
+  welcomeMessage: "Hi! I'm Maya 👋 Your dedicated AI assistant for Premier Auto Plus CRM. How can I help you today with leads, pipeline, or admin tasks?",
+  fallbackResponse: "I couldn't find a direct match. Try being more specific (e.g., 'Sarah Johnson details', 'hot leads', 'pipeline stages', or 'total leads').",
+  knowledge: [
+    { keywords: ["hello", "hi", "hey", "greetings"], response: "Hello! I'm Maya, your AI assistant for Premier Auto Plus CRM. How can I help you today?" },
+    { keywords: ["total leads", "how many leads"], response: "There are currently 10 Total Leads in the CRM." },
+    { keywords: ["hot leads"], response: "There are 4 Hot Leads right now." },
+    { keywords: ["deposits pending"], response: "1 Deposit is Pending." },
+    { keywords: ["deposits paid"], response: "3 Deposits have been Paid." },
+    { keywords: ["pipeline", "stages"], response: "Pipeline Stages: New Lead → Maya Qualification → Vehicle Sourcing → Alternatives Presented → Deposit Requested → Deposits Paid → Rep Handoff." },
+    { keywords: ["sarah johnson", "sarah"], response: "Sarah Johnson → Stage: New Lead → Value: $25,000 → Last activity: 2h ago. Interested in American pickup truck." },
+    { keywords: ["michael chen"], response: "Michael Chen → Stage: Maya Qualification → Value: $18,000 → Interested in SUVs." },
+    { keywords: ["emily rodriguez"], response: "Emily Rodriguez → Stage: Vehicle Sourcing → Value: $35,000 → Last activity: 1d ago." },
+    { keywords: ["james wilson"], response: "James Wilson → Stage: Alternatives Presented → Value: $22,000." },
+    { keywords: ["amanda lee"], response: "Amanda Lee → Stage: Deposit Requested → Value: $28,000." },
+    { keywords: ["help", "what can you do"], response: "I can provide lead details, pipeline status, current stats, and answer admin questions about the CRM." },
+    // Add more from your JSON as needed
+  ]
+};
 
 export default function Chatbot() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [knowledge, setKnowledge] = useState<KnowledgeBase | null>(null);
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Load knowledge.json with maximum cache busting
   useEffect(() => {
-    const loadKnowledge = async () => {
-      const timestamp = new Date().getTime();
-      
-      try {
-        const res = await fetch(`/knowledge.json?t=${timestamp}`, {
-          method: 'GET',
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-          },
-          cache: 'no-store'
-        });
-
-        if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
-
-        const data: KnowledgeBase = await res.json();
-
-        setKnowledge(data);
-        setStatus("success");
-
-        setMessages([{
-          id: 'welcome',
-          text: data.welcomeMessage,
-          isBot: true,
-          timestamp: new Date()
-        }]);
-      } catch (error) {
-        console.error("Fetch failed:", error);
-        setStatus("error");
-        setMessages([{
-          id: 'welcome',
-          text: "Hi! I'm Maya. Could not load knowledge.json. Try redeploying on Vercel.",
-          isBot: true,
-          timestamp: new Date()
-        }]);
-      }
-    };
-
-    loadKnowledge();
+    setMessages([{
+      id: 'welcome',
+      text: embeddedKnowledge.welcomeMessage,
+      isBot: true,
+      timestamp: new Date()
+    }]);
   }, []);
 
   const scrollToBottom = () => {
@@ -93,18 +75,14 @@ export default function Chatbot() {
   }, [isOpen]);
 
   const getBotResponse = (userMessage: string): string => {
-    if (status !== "success" || !knowledge) {
-      return "Knowledge base is still loading. Please wait...";
-    }
-
     const lowerMsg = userMessage.toLowerCase().trim();
 
-    for (const item of knowledge.knowledge) {
+    for (const item of embeddedKnowledge.knowledge) {
       if (item.keywords.some(keyword => lowerMsg.includes(keyword.toLowerCase()))) {
         return item.response;
       }
     }
-    return knowledge.fallbackResponse;
+    return embeddedKnowledge.fallbackResponse;
   };
 
   const handleSend = () => {
@@ -153,7 +131,6 @@ export default function Chatbot() {
 
       {isOpen && (
         <div className="fixed inset-0 md:inset-auto md:bottom-24 md:right-6 md:w-[380px] md:h-[520px] bg-white dark:bg-gray-900 z-[110] flex flex-col shadow-2xl md:rounded-2xl overflow-hidden">
-          
           <div className="bg-blue-600 text-white p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-2xl">👋</div>
@@ -193,7 +170,7 @@ export default function Chatbot() {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask about leads or pipeline..."
+                placeholder="Ask about Sarah Johnson, pipeline..."
                 className="flex-1 px-5 py-3.5 bg-gray-100 border rounded-full focus:outline-none"
               />
               <button
