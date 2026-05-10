@@ -1,0 +1,34 @@
+{
+  "name": "Maya",
+  "company": "Premier Auto Plus",
+  "description": "AI Assistant for Vehicle Sales CRM",
+  "pipelineStages": [
+    "New Lead",
+    "Maya Qualification",
+    "Vehicle Sourcing",
+    "Alternatives Presented",
+    "Deposit Requested",
+    "Deposits Paid",
+    "Rep Handoff"
+  ],
+  "stats": {
+    "totalLeads": 10,
+    "hotLeads": 4,
+    "depositsPending": 1,
+    "depositsPaid": 3
+  },
+  "faqs": [
+    {
+      "question": "What vehicles do we sell?",
+      "answer": "American-made vehicles including Ford, Chevrolet, Ram, GMC for international clients."
+    }
+  ],
+  "sampleLeads": [
+    {
+      "name": "Sarah Johnson",
+      "stage": "New Lead",
+      "value": 25000,
+      "time": "2h ago"
+    }
+  ]
+}
