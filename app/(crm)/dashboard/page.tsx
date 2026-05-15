@@ -12,8 +12,8 @@ export default async function DashboardPage() {
   try {
     leads = await getLeads()
   } catch (err: any) {
-    error = "Failed to load data - Proxy route not working"
-    console.error(err)
+    console.error("Dashboard Error:", err)
+    error = "Failed to load data from database. Please check deployment."
   }
 
   return <DashboardContent leads={leads} error={error} />
