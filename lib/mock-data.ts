@@ -93,101 +93,152 @@ export interface ScheduledJob {
 }
 
 /* =============================================
-   DIRECT AWS FETCH - CLEAN
+   DIRECT AWS API CONFIG
    ============================================= */
 const AWS_API = "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data"
 
 async function fetchTable(tableName: string): Promise<any[]> {
-  const url = `\( {AWS_API}?TableName= \){tableName}`;
-  console.log("Fetching:", url);
+  try {
+    const url = `\( {AWS_API}?TableName= \){tableName}`
+    console.log(`[fetchTable] Fetching: ${tableName}`)
 
-  const res = await fetch(url, {
-    method: "GET",
-    cache: "no-store",
-    next: { revalidate: 0 },
-  });
+    const response = await fetch(url, {
+      method: "GET",
+      cache: "no-store",
+      next: { revalidate: 0 },
+    })
 
-  if (!res.ok) throw new Error(`AWS ${res.status}`);
+    if (!response.ok) {
+      throw new Error(`AWS Error ${response.status}`)
+    }
 
-  const data = await res.json();
-  return Array.isArray(data) ? data : data.Items || [];
+    const data = await response.json()
+    const items = Array.isArray(data) ? data : data.Items || []
+
+    console.log(`[fetchTable] ${tableName} → ${items.length} items`)
+    return items
+  } catch (error: any) {
+    console.error(`[fetchTable] Failed for ${tableName}:`, error.message)
+    throw error
+  }
 }
 
 /*
 |--------------------------------------------------------------------------
-| MAIN FUNCTIONS
+| MAIN DATA FETCHERS
 |--------------------------------------------------------------------------
 */
 
-export async function getLeads() {
-  const raw = await fetchTable("tbl_leads");
-  return raw.map((lead: any, i: number) => ({
-    id: lead.id || lead.lead_id || `lead-${i}`,
+export async function getLeads(): Promise<Lead[]> {
+  const raw = await fetchTable("tbl_leads")
+  return raw.map((lead: any, index: number) => ({
+    id: lead.id || lead.lead_id || lead.leadId || `lead-${index}`,
     name: lead.name || "Unknown",
     phone: lead.phone || "",
     email: lead.email || "",
     budget: Number(lead.budget || 0),
-    preferredVehicle: lead.preferredVehicle || "Unknown Vehicle",
-    stage: lead.stage || "new_lead",
+    preferredVehicle: lead.preferredVehicle || lead.preferred_vehicle || "Unknown Vehicle",
+    stage: (lead.stage || "new_lead") as PipelineStage,
     statuses: Array.isArray(lead.statuses) ? lead.statuses : [],
     assignedRep: lead.assignedRep || null,
-    lastActivity: lead.lastActivity || "N/A",
-    downPayment: Number(lead.downPayment || 0),
+    lastActivity: lead.lastActivity || lead.last_activity || "N/A",
+    downPayment: Number(lead.downPayment || lead.down_payment || 0),
     location: lead.location || "Unknown",
-    creditStatus: lead.creditStatus || "good",
+    creditStatus: lead.creditStatus || lead.credit_status || "good",
     timeline: lead.timeline || "Unknown",
-    createdAt: lead.createdAt || new Date().toISOString(),
-  }));
+    createdAt: lead.createdAt || lead.created_at || new Date().toISOString(),
+  }))
 }
 
-export async function getMessages() { return {}; }
-export async function getWorkflowLogs() { return []; }
-export async function getStageHistory() { return {}; }
-export async function getVehicleMatches() { return []; }
-export async function getScheduledJobs() { return []; }
+export async function getMessages(): Promise<Record<string, Message[]>> {
+  const messages = await fetchTable("tbl_messages")
+  const grouped: Record<string, Message[]> = {}
+
+  messages.forEach((msg: any) => {
+    const leadId = msg.leadId || msg.lead_id || msg.leadId
+    if (!leadId) return
+    if (!grouped[leadId]) grouped[leadId] = []
+    grouped[leadId].push({
+      id: msg.id || `msg-${Date.now()}`,
+      leadId,
+      sender: msg.sender || "customer",
+      content: msg.content || "",
+      timestamp: msg.timestamp || new Date().toISOString(),
+    })
+  })
+  return grouped
+}
+
+export async function getWorkflowLogs(): Promise<WorkflowLog[]> {
+  return fetchTable("tbl_workflow_logs")
+}
+
+export async function getStageHistory(): Promise<Record<string, StageHistoryItem[]>> {
+  const items = await fetchTable("tbl_stage_history")
+  const grouped: Record<string, StageHistoryItem[]> = {}
+
+  items.forEach((item: any) => {
+    const leadId = item.leadId || item.lead_id
+    if (!leadId) return
+    if (!grouped[leadId]) grouped[leadId] = []
+    grouped[leadId].push({
+      stage: item.stage,
+      timestamp: item.timestamp,
+      note: item.note,
+    })
+  })
+  return grouped
+}
+
+export async function getVehicleMatches(): Promise<VehicleMatch[]> {
+  return fetchTable("tbl_vehicle_matches")
+}
+
+export async function getScheduledJobs(): Promise<ScheduledJob[]> {
+  return fetchTable("tbl_scheduled_jobs")
+}
 
 /*
 |--------------------------------------------------------------------------
-| HELPERS (Used by dashboard & other components)
+| HELPERS
 |--------------------------------------------------------------------------
 */
 
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(amount)
 }
 
 export function getLeadsByStage(leads: Lead[], stage: PipelineStage): Lead[] {
-  return leads.filter((lead) => lead.stage === stage);
+  return leads.filter((lead) => lead.stage === stage)
 }
 
 export function getStatusColor(status: LeadStatus): string {
   switch (status) {
-    case "hot": return "bg-orange-100 text-orange-700 border-orange-200";
-    case "automation_paused": return "bg-yellow-100 text-yellow-700 border-yellow-200";
-    case "customer_replied": return "bg-green-100 text-green-700 border-green-200";
-    case "deposit_paid": return "bg-blue-100 text-blue-700 border-blue-200";
-    default: return "bg-muted text-muted-foreground";
+    case "hot": return "bg-orange-100 text-orange-700 border-orange-200"
+    case "automation_paused": return "bg-yellow-100 text-yellow-700 border-yellow-200"
+    case "customer_replied": return "bg-green-100 text-green-700 border-green-200"
+    case "deposit_paid": return "bg-blue-100 text-blue-700 border-blue-200"
+    default: return "bg-muted text-muted-foreground"
   }
 }
 
 export function getStatusLabel(status: LeadStatus): string {
   switch (status) {
-    case "hot": return "Hot Lead";
-    case "automation_paused": return "Automation Paused";
-    case "customer_replied": return "Customer Replied";
-    case "deposit_paid": return "Deposit Paid";
-    default: return status;
+    case "hot": return "Hot Lead"
+    case "automation_paused": return "Automation Paused"
+    case "customer_replied": return "Customer Replied"
+    case "deposit_paid": return "Deposit Paid"
+    default: return status
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| MOCKS (Required by crm-context.tsx)
-|--------------------------------------------------------------------------
-*/
-export const mockLeads: Lead[] = [];
-export const mockMessages: Record<string, Message[]> = {};
-export const mockWorkflowLogs: WorkflowLog[] = [];
-export const mockStageHistory: Record<string, StageHistoryItem[]> = {};
-export const mockVehicleMatches: VehicleMatch[] = [];
-export const mockScheduledJobs: ScheduledJob[] = [];
+/* Mocks for compatibility */
+export const mockLeads: Lead[] = []
+export const mockMessages: Record<string, Message[]> = {}
+export const mockWorkflowLogs: WorkflowLog[] = []
+export const mockStageHistory: Record<string, StageHistoryItem[]> = {}
+export const mockVehicleMatches: VehicleMatch[] = []
+export const mockScheduledJobs: ScheduledJob[] = []
