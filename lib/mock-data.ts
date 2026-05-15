@@ -102,7 +102,7 @@ async function fetchTable<T>(tableName: string): Promise<any[]> {
     console.log(`[fetchTable] Fetching ${tableName} via proxy...`)
 
     const response = await fetch(
-      `\( {API_BASE}/ \){tableName}`,   // ← THIS MUST BE EXACTLY LIKE THIS
+      `\( {API_BASE}/ \){tableName}`,   // ← CORRECT LINE
       {
         method: "GET",
         cache: "no-store",
@@ -162,8 +162,9 @@ export async function getLeads(): Promise<Lead[]> {
   }))
 }
 
-/* Keep the rest of your functions as they were */
-export async function getMessages() {
+/* ==================== Other Functions ==================== */
+
+export async function getMessages(): Promise<Record<string, Message[]>> {
   const messages = await fetchTable<any>("tbl_messages")
   const grouped: Record<string, Message[]> = {}
   messages.forEach((message: any) => {
@@ -181,14 +182,45 @@ export async function getMessages() {
   return grouped
 }
 
-export async function getWorkflowLogs() { return fetchTable<WorkflowLog>("tbl_workflow_logs") }
-export async function getStageHistory() { /* same as before */ }
-export async function getVehicleMatches() { return fetchTable<VehicleMatch>("tbl_vehicle_matches") }
-export async function getScheduledJobs() { return fetchTable<ScheduledJob>("tbl_scheduled_jobs") }
+export async function getWorkflowLogs(): Promise<WorkflowLog[]> {
+  return fetchTable<WorkflowLog>("tbl_workflow_logs")
+}
 
-/* Helpers */
+export async function getStageHistory(): Promise<Record<string, StageHistoryItem[]>> {
+  const history = await fetchTable<any>("tbl_stage_history")
+  const grouped: Record<string, StageHistoryItem[]> = {}
+  history.forEach((item: any) => {
+    const leadId = item.leadId || item.lead_id || item.leadId
+    if (!leadId) return
+    if (!grouped[leadId]) grouped[leadId] = []
+    grouped[leadId].push({
+      stage: item.stage,
+      timestamp: item.timestamp,
+      note: item.note,
+    })
+  })
+  return grouped
+}
+
+export async function getVehicleMatches(): Promise<VehicleMatch[]> {
+  return fetchTable<VehicleMatch>("tbl_vehicle_matches")
+}
+
+export async function getScheduledJobs(): Promise<ScheduledJob[]> {
+  return fetchTable<ScheduledJob>("tbl_scheduled_jobs")
+}
+
+/*
+|--------------------------------------------------------------------------
+| HELPERS
+|--------------------------------------------------------------------------
+*/
+
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount)
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(amount)
 }
 
 export function getLeadsByStage(leads: Lead[], stage: PipelineStage): Lead[] {
