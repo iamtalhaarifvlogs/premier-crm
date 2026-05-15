@@ -46,37 +46,38 @@ export function KanbanColumn({ id, title, leads, onLeadClick }: KanbanColumnProp
       )}
     >
       {/* Column Header */}
-      <div className="flex items-center justify-between border-b bg-background/50 p-3">
+      <div className="flex items-center justify-between border-b bg-background/50 p-3 sticky top-0 z-10">
         <div className="flex items-center gap-2">
-          <div className={cn("size-2 rounded-full", stageColors[id])} />
-          <h3 className="text-sm font-medium">{title}</h3>
+          <div className={cn("size-2.5 rounded-full", stageColors[id])} />
+          <h3 className="font-medium">{title}</h3>
         </div>
-        <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+        <Badge variant="secondary" className="h-5 px-2 text-xs font-mono">
           {leads.length}
         </Badge>
       </div>
 
       {/* Column Content */}
-      <ScrollArea className="flex-1 p-2">
+      <ScrollArea className="flex-1 p-3">
         <SortableContext
-          items={leads.map((l) => l.id)}
+          items={leads.map((lead) => lead.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="flex flex-col gap-2">
-            {leads.map((lead) => (
-              <SortableLeadCard
-                key={lead.id}
-                lead={lead}
-                onClick={() => onLeadClick(lead)}
-              />
-            ))}
+          <div className="flex flex-col gap-2 min-h-[100px]">
+            {leads.length > 0 ? (
+              leads.map((lead) => (
+                <SortableLeadCard
+                  key={lead.id}
+                  lead={lead}
+                  onClick={() => onLeadClick(lead)}
+                />
+              ))
+            ) : (
+              <div className="flex h-24 items-center justify-center rounded-lg border border-dashed border-muted-foreground/30 text-sm text-muted-foreground">
+                No leads in this stage
+              </div>
+            )}
           </div>
         </SortableContext>
-        {leads.length === 0 && (
-          <div className="flex h-24 items-center justify-center rounded-md border-2 border-dashed text-sm text-muted-foreground">
-            No leads
-          </div>
-        )}
       </ScrollArea>
     </div>
   )
