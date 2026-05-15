@@ -16,7 +16,10 @@ import {
 } from "lucide-react"
 
 import { useCRM } from "@/lib/crm-context"
-import { mockScheduledJobs } from "@/lib/crm-context"
+import { 
+  getWorkflowLogs, 
+  getScheduledJobs 
+} from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -51,22 +54,53 @@ import {
 } from "@/components/ui/alert-dialog"
 
 export function WorkflowConsoleContent() {
-  const { workflowLogs, addWorkflowLog, clearWorkflowLogs, leads, setLeads } = useCRM()
+  const { workflowLogs: contextLogs, addWorkflowLog, clearWorkflowLogs } = useCRM()
+
+  const [realWorkflowLogs, setRealWorkflowLogs] = React.useState<any[]>([])
+  const [scheduledJobs, setScheduledJobs] = React.useState<any[]>([])
+  const [loading, setLoading] = React.useState(true)
   const [searchLeadId, setSearchLeadId] = React.useState("")
   const [filterWorkflow, setFilterWorkflow] = React.useState<string>("all")
   const [filterStatus, setFilterStatus] = React.useState<string>("all")
   const [isRunningTest, setIsRunningTest] = React.useState(false)
 
+  // Load real data
+  React.useEffect(() => {
+    async function loadRealData() {
+      setLoading(true)
+      try {
+        const [logs, jobs] = await Promise.all([
+          getWorkflowLogs(),
+          getScheduledJobs()
+        ])
+
+        setRealWorkflowLogs(logs)
+        setScheduledJobs(jobs)
+      } catch (err) {
+        console.error("Failed to load real workflow data:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadRealData()
+  }, [])
+
+  // Use real data + context logs (if any)
+  const allLogs = React.useMemo(() => {
+    return [...realWorkflowLogs, ...contextLogs]
+  }, [realWorkflowLogs, contextLogs])
+
   // Get unique workflow names
   const workflowNames = React.useMemo(() => {
-    const names = new Set(workflowLogs.map((log) => log.workflowName))
+    const names = new Set(allLogs.map((log) => log.workflowName))
     return Array.from(names)
-  }, [workflowLogs])
+  }, [allLogs])
 
   // Filter logs
   const filteredLogs = React.useMemo(() => {
-    return workflowLogs.filter((log) => {
-      if (searchLeadId && !log.leadId.toLowerCase().includes(searchLeadId.toLowerCase())) {
+    return allLogs.filter((log) => {
+      if (searchLeadId && !log.leadId?.toLowerCase().includes(searchLeadId.toLowerCase())) {
         return false
       }
       if (filterWorkflow !== "all" && log.workflowName !== filterWorkflow) {
@@ -77,7 +111,7 @@ export function WorkflowConsoleContent() {
       }
       return true
     })
-  }, [workflowLogs, searchLeadId, filterWorkflow, filterStatus])
+  }, [allLogs, searchLeadId, filterWorkflow, filterStatus])
 
   const handleSeedDemoData = () => {
     const demoLogs = [
@@ -91,22 +125,13 @@ export function WorkflowConsoleContent() {
         metadata: '{"template": "welcome_v3"}',
       },
       {
-        leadId: "lead-002",
+        leadId: "lead-001",
         timestamp: new Date(Date.now() - 60000).toISOString(),
         workflowName: "Follow-up Scheduler",
         triggerEvent: "no_response_24h",
         action: "schedule_followup",
         status: "success" as const,
         metadata: '{"delay": "24h"}',
-      },
-      {
-        leadId: "lead-003",
-        timestamp: new Date(Date.now() - 120000).toISOString(),
-        workflowName: "Hot Lead Alert",
-        triggerEvent: "budget_threshold_met",
-        action: "notify_sales_team",
-        status: "skipped" as const,
-        metadata: '{"reason": "already_notified"}',
       },
     ]
 
@@ -115,7 +140,7 @@ export function WorkflowConsoleContent() {
 
   const handleExportLogs = () => {
     const dataStr = JSON.stringify(filteredLogs, null, 2)
-    const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr)
+    const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`
     const linkElement = document.createElement("a")
     linkElement.setAttribute("href", dataUri)
     linkElement.setAttribute("download", "workflow-logs.json")
@@ -125,32 +150,10 @@ export function WorkflowConsoleContent() {
   const handleRunTestSimulation = () => {
     setIsRunningTest(true)
 
-    // Simulate workflow test
     const testSteps = [
-      {
-        leadId: "test-lead",
-        workflowName: "Test Simulation",
-        triggerEvent: "manual_test",
-        action: "validate_trigger",
-        status: "success" as const,
-        metadata: '{"step": 1}',
-      },
-      {
-        leadId: "test-lead",
-        workflowName: "Test Simulation",
-        triggerEvent: "validation_passed",
-        action: "execute_action",
-        status: "success" as const,
-        metadata: '{"step": 2}',
-      },
-      {
-        leadId: "test-lead",
-        workflowName: "Test Simulation",
-        triggerEvent: "action_complete",
-        action: "log_result",
-        status: "success" as const,
-        metadata: '{"step": 3, "result": "passed"}',
-      },
+      { leadId: "test-lead", workflowName: "Test Simulation", triggerEvent: "manual_test", action: "validate_trigger", status: "success" as const, metadata: '{"step": 1}' },
+      { leadId: "test-lead", workflowName: "Test Simulation", triggerEvent: "validation_passed", action: "execute_action", status: "success" as const, metadata: '{"step": 2}' },
+      { leadId: "test-lead", workflowName: "Test Simulation", triggerEvent: "action_complete", action: "log_result", status: "success" as const, metadata: '{"step": 3, "result": "passed"}' },
     ]
 
     let index = 0
@@ -165,7 +168,7 @@ export function WorkflowConsoleContent() {
         clearInterval(interval)
         setIsRunningTest(false)
       }
-    }, 800)
+    }, 700)
   }
 
   return (
@@ -173,35 +176,13 @@ export function WorkflowConsoleContent() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Workflow Console</h1>
-          <p className="text-muted-foreground">
-            Monitor and debug automation workflows
-          </p>
+          <p className="text-muted-foreground">Monitor and debug automation workflows</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleSeedDemoData}>
             <Database className="mr-1.5 size-4" />
             Seed Demo Data
           </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Trash2 className="mr-1.5 size-4" />
-                Clear Logs
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Clear all workflow logs?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. All workflow logs will be permanently deleted.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={clearWorkflowLogs}>Clear Logs</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
           <Button variant="outline" size="sm" onClick={handleExportLogs}>
             <Download className="mr-1.5 size-4" />
             Export JSON
@@ -241,6 +222,7 @@ export function WorkflowConsoleContent() {
                   className="h-9 pl-9"
                 />
               </div>
+
               <Select value={filterWorkflow} onValueChange={setFilterWorkflow}>
                 <SelectTrigger className="w-[180px] h-9">
                   <SelectValue placeholder="Workflow" />
@@ -248,12 +230,11 @@ export function WorkflowConsoleContent() {
                 <SelectContent>
                   <SelectItem value="all">All Workflows</SelectItem>
                   {workflowNames.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
-                    </SelectItem>
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+
               <Select value={filterStatus} onValueChange={setFilterStatus}>
                 <SelectTrigger className="w-[140px] h-9">
                   <SelectValue placeholder="Status" />
@@ -268,7 +249,7 @@ export function WorkflowConsoleContent() {
             </div>
 
             {/* Table */}
-            <ScrollArea className="h-[400px] rounded-md border">
+            <ScrollArea className="h-[420px] rounded-md border">
               <Table>
                 <TableHeader className="sticky top-0 bg-background">
                   <TableRow>
@@ -285,48 +266,40 @@ export function WorkflowConsoleContent() {
                   {filteredLogs.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
-                        No workflow logs found. Try adjusting your filters or seed demo data.
+                        No workflow logs found. Try seeding demo data.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredLogs.map((log) => (
-                      <TableRow key={log.id}>
+                    filteredLogs.map((log, index) => (
+                      <TableRow key={index}>
                         <TableCell className="text-xs text-muted-foreground font-mono">
                           {new Date(log.timestamp).toLocaleString([], {
                             month: "short",
                             day: "numeric",
                             hour: "2-digit",
                             minute: "2-digit",
-                            second: "2-digit",
                           })}
                         </TableCell>
-                        <TableCell className="text-xs font-mono">{log.leadId}</TableCell>
-                        <TableCell className="text-sm font-medium">{log.workflowName}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {log.triggerEvent.replace(/_/g, " ")}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {log.action.replace(/_/g, " ")}
-                        </TableCell>
+                        <TableCell className="font-mono text-xs">{log.leadId}</TableCell>
+                        <TableCell className="font-medium">{log.workflowName}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{log.triggerEvent}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{log.action}</TableCell>
                         <TableCell>
                           <StatusBadge status={log.status} />
                         </TableCell>
-                        <TableCell className="max-w-[120px]">
-                          <code className="text-xs text-muted-foreground truncate block">
-                            {log.metadata}
-                          </code>
+                        <TableCell className="max-w-[150px] text-xs text-muted-foreground truncate">
+                          {log.metadata}
                         </TableCell>
                       </TableRow>
                     ))
                   )}
                 </TableBody>
               </Table>
-              <ScrollBar orientation="horizontal" />
             </ScrollArea>
           </CardContent>
         </Card>
 
-        {/* Scheduled Jobs Panel */}
+        {/* Scheduled Jobs */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -337,39 +310,28 @@ export function WorkflowConsoleContent() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {mockScheduledJobs.map((job) => (
-                <div
-                  key={job.id}
-                  className={cn(
-                    "rounded-lg border p-3",
-                    job.status === "completed" && "bg-muted/50"
-                  )}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "text-xs",
-                        job.status === "pending" && "border-amber-200 bg-amber-50 text-amber-700",
-                        job.status === "completed" && "border-green-200 bg-green-50 text-green-700",
-                        job.status === "cancelled" && "border-red-200 bg-red-50 text-red-700"
-                      )}
-                    >
-                      {job.status}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(job.runAt).toLocaleString([], {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
-                  <p className="text-sm font-medium">{job.jobType}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{job.leadId}</p>
+              {scheduledJobs.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  No scheduled jobs
                 </div>
-              ))}
+              ) : (
+                scheduledJobs.map((job) => (
+                  <div key={job.id} className="rounded-lg border p-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium text-sm">{job.jobType}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{job.leadId}</p>
+                      </div>
+                      <Badge variant={job.status === "pending" ? "default" : "secondary"}>
+                        {job.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {new Date(job.runAt).toLocaleString()}
+                    </p>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -378,20 +340,20 @@ export function WorkflowConsoleContent() {
   )
 }
 
-function StatusBadge({ status }: { status: "success" | "skipped" | "failed" }) {
+function StatusBadge({ status }: { status: string }) {
   return (
     <Badge
       variant="outline"
       className={cn(
-        "gap-1 text-xs",
+        "text-xs",
         status === "success" && "border-green-200 bg-green-50 text-green-700",
         status === "skipped" && "border-yellow-200 bg-yellow-50 text-yellow-700",
         status === "failed" && "border-red-200 bg-red-50 text-red-700"
       )}
     >
-      {status === "success" && <CheckCircle className="size-3" />}
-      {status === "skipped" && <MinusCircle className="size-3" />}
-      {status === "failed" && <XCircle className="size-3" />}
+      {status === "success" && <CheckCircle className="mr-1 size-3" />}
+      {status === "skipped" && <MinusCircle className="mr-1 size-3" />}
+      {status === "failed" && <XCircle className="mr-1 size-3" />}
       {status}
     </Badge>
   )
