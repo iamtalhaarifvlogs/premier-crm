@@ -10,21 +10,21 @@ export async function GET(
   const tableName = params.table
 
   try {
-    const response = await fetch(`\( {API_BASE}?TableName= \){tableName}`, {
+    const res = await fetch(`\( {API_BASE}?TableName= \){tableName}`, {
       method: "GET",
       cache: "no-store",
       next: { revalidate: 0 },
     })
 
-    if (!response.ok) {
-      const text = await response.text()
-      return NextResponse.json({ error: text }, { status: response.status })
+    if (!res.ok) {
+      const text = await res.text()
+      return NextResponse.json({ error: text }, { status: res.status })
     }
 
-    const data = await response.json()
+    const data = await res.json()
     return NextResponse.json(data)
-  } catch (error: any) {
-    console.error("Proxy Error:", error)
-    return NextResponse.json({ error: error.message }, { status: 502 })
+  } catch (err: any) {
+    console.error("Proxy Error:", err)
+    return NextResponse.json({ error: err.message }, { status: 502 })
   }
 }
