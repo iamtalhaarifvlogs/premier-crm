@@ -3,7 +3,7 @@
 const AWS_API = "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data"
 
 async function fetchTable(tableName: string) {
-  const url = `\( {AWS_API}?TableName= \){tableName}`;
+  const url = `\( {AWS_API}?TableName= \){tableName}`;   // ← THIS IS THE CORRECT LINE
   console.log("Fetching URL:", url);
 
   const res = await fetch(url, {
@@ -39,7 +39,7 @@ export async function getLeads() {
   }));
 }
 
-// Required exports for your project
+// Required exports
 export async function getMessages() { return {}; }
 export async function getWorkflowLogs() { return []; }
 export async function getStageHistory() { return {}; }
