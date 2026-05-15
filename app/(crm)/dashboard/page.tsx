@@ -1,30 +1,45 @@
-// app/dashboard/page.tsx   (or wherever your main dashboard page is)
-import { DashboardContent } from "@/components/dashboard/dashboard-content";
-import { getLeads, getMessages, getWorkflowLogs, getStageHistory, getVehicleMatches } from "@/lib/mock-data";
+// app/dashboard/page.tsx
+import { DashboardContent } from "@/components/dashboard/dashboard-content"
+import {
+  getLeads,
+  getMessages,
+  getWorkflowLogs,
+  getStageHistory,
+  getVehicleMatches,
+} from "@/lib/mock-data"
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export default async function DashboardPage() {
-  let leads = [];
-  let messages = {};
-  let workflowLogs = [];
-  let stageHistory = {};
-  let vehicleMatches = [];
-  let error: string | null = null;
+  let leads: any[] = []
+  let messages: Record<string, any[]> = {}
+  let workflowLogs: any[] = []
+  let stageHistory: Record<string, any[]> = {}
+  let vehicleMatches: any[] = []
+  let error: string | null = null
 
   try {
-    // Fetch all necessary data on the server
-    [leads, messages, workflowLogs, stageHistory, vehicleMatches] = await Promise.all([
+    console.log("🚀 Fetching all dashboard data...")
+
+    const data = await Promise.all([
       getLeads(),
       getMessages(),
       getWorkflowLogs(),
       getStageHistory(),
       getVehicleMatches(),
-    ]);
+    ])
+
+    leads = data[0]
+    messages = data[1]
+    workflowLogs = data[2]
+    stageHistory = data[3]
+    vehicleMatches = data[4]
+
+    console.log(`✅ Dashboard data loaded | Leads: ${leads.length}`)
   } catch (err: any) {
-    console.error("Dashboard data fetch error:", err);
-    error = "Failed to load dashboard data. Please check your connection and proxy setup.";
+    console.error("❌ Dashboard data fetch failed:", err)
+    error = "Failed to load dashboard data. Please check your proxy route and API connection."
   }
 
   return (
@@ -36,5 +51,5 @@ export default async function DashboardPage() {
       vehicleMatches={vehicleMatches}
       error={error}
     />
-  );
+  )
 }
