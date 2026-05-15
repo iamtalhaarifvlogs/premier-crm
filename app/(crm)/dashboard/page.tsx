@@ -11,9 +11,10 @@ export default async function DashboardPage() {
 
   try {
     leads = await getLeads()
+    console.log(`Dashboard loaded ${leads.length} leads successfully`)
   } catch (err: any) {
-    console.error("Dashboard Error:", err)
-    error = "Failed to load data from database. Please check deployment."
+    console.error("Dashboard fetch error:", err)
+    error = "Failed to load leads from AWS. Check Lambda logs in AWS console."
   }
 
   return <DashboardContent leads={leads} error={error} />
