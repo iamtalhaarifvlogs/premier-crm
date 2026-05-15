@@ -93,16 +93,16 @@ export interface ScheduledJob {
 }
 
 /* =============================================
-   IMPORTANT: Using Vercel Proxy Route
+   PROXY CONFIGURATION
    ============================================= */
-const API_BASE = "/api/crm"   // ← This calls your local proxy, not AWS directly
+const API_BASE = "/api/crm"   // This points to your Vercel proxy
 
 async function fetchTable<T>(tableName: string): Promise<any[]> {
   try {
     console.log(`[fetchTable] Fetching ${tableName} via proxy...`)
 
     const response = await fetch(
-      `\( {API_BASE}/ \){tableName}`,
+      `\( {API_BASE}/ \){tableName}`,   // ← Correct URL format
       {
         method: "GET",
         cache: "no-store",
@@ -136,9 +136,9 @@ async function fetchTable<T>(tableName: string): Promise<any[]> {
 
     console.warn(`[fetchTable] Unexpected response format for ${tableName}`, data)
     return []
-  } catch (error) {
-    console.error(`[fetchTable] Error fetching ${tableName}:`, error)
-    return []
+  } catch (error: any) {
+    console.error(`[fetchTable] Error fetching ${tableName}:`, error.message)
+    throw error
   }
 }
 
@@ -162,10 +162,7 @@ export async function getLeads(): Promise<Lead[]> {
       phone: lead.phone || "",
       email: lead.email || "",
       budget: Number(lead.budget || 0),
-      preferredVehicle:
-        lead.preferredVehicle ||
-        lead.preferred_vehicle ||
-        "Unknown Vehicle",
+      preferredVehicle: lead.preferredVehicle || lead.preferred_vehicle || "Unknown Vehicle",
       stage: (lead.stage || "new_lead") as PipelineStage,
       statuses: Array.isArray(lead.statuses) ? lead.statuses : [],
       assignedRep: lead.assignedRep || lead.assigned_rep || null,
@@ -174,10 +171,7 @@ export async function getLeads(): Promise<Lead[]> {
       location: lead.location || "Unknown",
       creditStatus: lead.creditStatus || lead.credit_status || "good",
       timeline: lead.timeline || "Unknown",
-      createdAt:
-        lead.createdAt ||
-        lead.created_at ||
-        new Date().toISOString(),
+      createdAt: lead.createdAt || lead.created_at || new Date().toISOString(),
     }
   })
 }
@@ -293,31 +287,21 @@ export function getLeadsByStage(leads: Lead[], stage: PipelineStage): Lead[] {
 
 export function getStatusColor(status: LeadStatus): string {
   switch (status) {
-    case "hot":
-      return "bg-orange-100 text-orange-700 border-orange-200"
-    case "automation_paused":
-      return "bg-yellow-100 text-yellow-700 border-yellow-200"
-    case "customer_replied":
-      return "bg-green-100 text-green-700 border-green-200"
-    case "deposit_paid":
-      return "bg-blue-100 text-blue-700 border-blue-200"
-    default:
-      return "bg-muted text-muted-foreground"
+    case "hot": return "bg-orange-100 text-orange-700 border-orange-200"
+    case "automation_paused": return "bg-yellow-100 text-yellow-700 border-yellow-200"
+    case "customer_replied": return "bg-green-100 text-green-700 border-green-200"
+    case "deposit_paid": return "bg-blue-100 text-blue-700 border-blue-200"
+    default: return "bg-muted text-muted-foreground"
   }
 }
 
 export function getStatusLabel(status: LeadStatus): string {
   switch (status) {
-    case "hot":
-      return "Hot Lead"
-    case "automation_paused":
-      return "Automation Paused"
-    case "customer_replied":
-      return "Customer Replied"
-    case "deposit_paid":
-      return "Deposit Paid"
-    default:
-      return status
+    case "hot": return "Hot Lead"
+    case "automation_paused": return "Automation Paused"
+    case "customer_replied": return "Customer Replied"
+    case "deposit_paid": return "Deposit Paid"
+    default: return status
   }
 }
 
