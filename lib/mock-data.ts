@@ -148,17 +148,46 @@ export async function getScheduledJobs() { return []; }
 
 /*
 |--------------------------------------------------------------------------
-| MOCKS (Required by crm-context.tsx)
+| HELPERS (Required by other components)
 |--------------------------------------------------------------------------
 */
-export const mockLeads: Lead[] = []
-export const mockMessages: Record<string, Message[]> = {}
-export const mockWorkflowLogs: WorkflowLog[] = []
-export const mockStageHistory: Record<string, StageHistoryItem[]> = {}
-export const mockVehicleMatches: VehicleMatch[] = []
-export const mockScheduledJobs: ScheduledJob[] = []
 
-/* Helpers */
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
 }
+
+export function getLeadsByStage(leads: Lead[], stage: PipelineStage): Lead[] {
+  return leads.filter((lead) => lead.stage === stage);
+}
+
+export function getStatusColor(status: LeadStatus): string {
+  switch (status) {
+    case "hot": return "bg-orange-100 text-orange-700 border-orange-200";
+    case "automation_paused": return "bg-yellow-100 text-yellow-700 border-yellow-200";
+    case "customer_replied": return "bg-green-100 text-green-700 border-green-200";
+    case "deposit_paid": return "bg-blue-100 text-blue-700 border-blue-200";
+    default: return "bg-muted text-muted-foreground";
+  }
+}
+
+export function getStatusLabel(status: LeadStatus): string {
+  switch (status) {
+    case "hot": return "Hot Lead";
+    case "automation_paused": return "Automation Paused";
+    case "customer_replied": return "Customer Replied";
+    case "deposit_paid": return "Deposit Paid";
+    default: return status;
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| MOCKS (Required by crm-context.tsx and other files)
+|--------------------------------------------------------------------------
+*/
+export const mockLeads: Lead[] = [];
+export const mockMessages: Record<string, Message[]> = {};
+export const mockWorkflowLogs: WorkflowLog[] = [];
+export const mockStageHistory: Record<string, StageHistoryItem[]> = {};
+export const mockVehicleMatches: VehicleMatch[] = [];
+export const mockScheduledJobs: ScheduledJob[] = [];
