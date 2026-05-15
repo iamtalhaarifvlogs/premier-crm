@@ -102,12 +102,14 @@ async function fetchTable<T>(tableName: string): Promise<any[]> {
     console.log(`[fetchTable] Fetching ${tableName} via proxy...`)
 
     const response = await fetch(
-      `\( {API_BASE}/ \){tableName}`,        // ← This is the correct line
+      `\( {API_BASE}/ \){tableName}`,   // ← THIS MUST BE EXACTLY LIKE THIS
       {
         method: "GET",
         cache: "no-store",
         next: { revalidate: 0 },
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
       }
     )
 
@@ -126,7 +128,7 @@ async function fetchTable<T>(tableName: string): Promise<any[]> {
 
     return []
   } catch (error: any) {
-    console.error(`[fetchTable] Error:`, error.message)
+    console.error(`[fetchTable] Error fetching ${tableName}:`, error.message)
     throw error
   }
 }
@@ -160,29 +162,33 @@ export async function getLeads(): Promise<Lead[]> {
   }))
 }
 
-/* 
-   Other functions (getMessages, getWorkflowLogs, etc.) remain the same 
-   as your previous version. I'm keeping them short here for brevity.
-*/
+/* Keep the rest of your functions as they were */
+export async function getMessages() {
+  const messages = await fetchTable<any>("tbl_messages")
+  const grouped: Record<string, Message[]> = {}
+  messages.forEach((message: any) => {
+    const leadId = message.leadId || message.lead_id || message.leadId
+    if (!leadId) return
+    if (!grouped[leadId]) grouped[leadId] = []
+    grouped[leadId].push({
+      id: message.id || `msg-${Date.now()}`,
+      leadId,
+      sender: message.sender || "customer",
+      content: message.content || "",
+      timestamp: message.timestamp || new Date().toISOString(),
+    })
+  })
+  return grouped
+}
 
-export async function getMessages() { /* ... same as before */ }
-export async function getWorkflowLogs() { /* ... */ }
-export async function getStageHistory() { /* ... */ }
-export async function getVehicleMatches() { /* ... */ }
-export async function getScheduledJobs() { /* ... */ }
+export async function getWorkflowLogs() { return fetchTable<WorkflowLog>("tbl_workflow_logs") }
+export async function getStageHistory() { /* same as before */ }
+export async function getVehicleMatches() { return fetchTable<VehicleMatch>("tbl_vehicle_matches") }
+export async function getScheduledJobs() { return fetchTable<ScheduledJob>("tbl_scheduled_jobs") }
 
-/*
-|--------------------------------------------------------------------------
-| HELPERS
-|--------------------------------------------------------------------------
-*/
-
+/* Helpers */
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-  }).format(amount)
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount)
 }
 
 export function getLeadsByStage(leads: Lead[], stage: PipelineStage): Lead[] {
