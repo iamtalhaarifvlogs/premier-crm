@@ -28,6 +28,7 @@ import {
   getStatusColor,
   getStatusLabel,
   formatCurrency,
+  getLeads,        // Added for fallback
 } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -69,41 +70,51 @@ export function KanbanBoard() {
   const [activeFilter, setActiveFilter] = React.useState<FilterType>("all")
   const [activeId, setActiveId] = React.useState<string | null>(null)
   const [isAddLeadOpen, setIsAddLeadOpen] = React.useState(false)
+  const [loading, setLoading] = React.useState(false)
+
+  // Ensure we have fresh leads
+  React.useEffect(() => {
+    async function ensureLeads() {
+      if (leads.length === 0) {
+        setLoading(true)
+        try {
+          const freshLeads = await getLeads()
+          setLeads(freshLeads)
+        } catch (err) {
+          console.error("Failed to load leads in Kanban:", err)
+        } finally {
+          setLoading(false)
+        }
+      }
+    }
+    ensureLeads()
+  }, [leads.length, setLeads])
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
   const filteredLeads = React.useMemo(() => {
     let result = leads
 
-    // Apply search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
-      result = result.filter(
-        (lead) =>
-          lead.name.toLowerCase().includes(query) ||
-          lead.phone.includes(query) ||
-          lead.preferredVehicle.toLowerCase().includes(query)
+      result = result.filter((lead) =>
+        lead.name.toLowerCase().includes(query) ||
+        lead.phone.includes(query) ||
+        lead.preferredVehicle.toLowerCase().includes(query) ||
+        lead.email.toLowerCase().includes(query)
       )
     }
 
-    // Apply status filter
     switch (activeFilter) {
       case "hot":
         result = result.filter((lead) => lead.statuses.includes("hot"))
         break
       case "deposit_pending":
         result = result.filter(
-          (lead) =>
-            lead.stage === "deposit_requested" && !lead.statuses.includes("deposit_paid")
+          (lead) => lead.stage === "deposit_requested" && !lead.statuses.includes("deposit_paid")
         )
         break
       case "assigned":
@@ -127,7 +138,6 @@ export function KanbanBoard() {
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
-
     if (!over) {
       setActiveId(null)
       return
@@ -136,13 +146,11 @@ export function KanbanBoard() {
     const activeId = active.id as string
     const overId = over.id as string
 
-    // Check if dropping on a column
     const isColumn = PIPELINE_STAGES.some((stage) => stage.id === overId)
 
     if (isColumn) {
       moveLeadToStage(activeId, overId as PipelineStage)
     } else {
-      // Dropping on another card - get the stage of that card
       const overLead = leads.find((l) => l.id === overId)
       if (overLead) {
         moveLeadToStage(activeId, overLead.stage)
@@ -151,33 +159,6 @@ export function KanbanBoard() {
 
     setActiveId(null)
   }
-
-  const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event
-
-    if (!over) return
-
-    const activeId = active.id as string
-    const overId = over.id as string
-
-    const activeLead = leads.find((l) => l.id === activeId)
-    const overLead = leads.find((l) => l.id === overId)
-
-    if (!activeLead) return
-
-    // Check if over a column
-    const isOverColumn = PIPELINE_STAGES.some((stage) => stage.id === overId)
-
-    if (isOverColumn && activeLead.stage !== overId) {
-      // Move to the new column
-      moveLeadToStage(activeId, overId as PipelineStage)
-    } else if (overLead && activeLead.stage !== overLead.stage) {
-      // Move to the column of the card being hovered over
-      moveLeadToStage(activeId, overLead.stage)
-    }
-  }
-
-  const activeLead = activeId ? leads.find((l) => l.id === activeId) : null
 
   const handleLeadClick = (lead: Lead) => {
     setSelectedLead(lead)
@@ -190,7 +171,7 @@ export function KanbanBoard() {
       name: data.name,
       phone: data.phone,
       email: data.email,
-      budget: parseInt(data.budget) || 20000,
+      budget: parseInt(data.budget) || 25000,
       preferredVehicle: data.vehicle,
       stage: "new_lead",
       statuses: [],
@@ -199,11 +180,15 @@ export function KanbanBoard() {
       downPayment: 0,
       location: "Unknown",
       creditStatus: "good",
-      timeline: "Not specified",
+      timeline: "Within 2 weeks",
       createdAt: new Date().toISOString(),
     }
     setLeads((prev) => [newLead, ...prev])
     setIsAddLeadOpen(false)
+  }
+
+  if (loading) {
+    return <div className="flex h-full items-center justify-center">Loading pipeline...</div>
   }
 
   return (
@@ -226,47 +211,23 @@ export function KanbanBoard() {
             <Button variant="outline" size="sm" className="gap-2">
               <Filter className="size-4" />
               Filter
-              {activeFilter !== "all" && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                  1
-                </Badge>
-              )}
+              {activeFilter !== "all" && <Badge variant="secondary" className="ml-1 h-5 px-1.5">1</Badge>}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48">
-            <DropdownMenuCheckboxItem
-              checked={activeFilter === "all"}
-              onCheckedChange={() => setActiveFilter("all")}
-            >
-              <CircleDot className="mr-2 size-4" />
+            <DropdownMenuCheckboxItem checked={activeFilter === "all"} onCheckedChange={() => setActiveFilter("all")}>
               All Leads
             </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={activeFilter === "hot"}
-              onCheckedChange={() => setActiveFilter("hot")}
-            >
-              <Flame className="mr-2 size-4 text-orange-500" />
+            <DropdownMenuCheckboxItem checked={activeFilter === "hot"} onCheckedChange={() => setActiveFilter("hot")}>
               Hot Leads Only
             </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={activeFilter === "deposit_pending"}
-              onCheckedChange={() => setActiveFilter("deposit_pending")}
-            >
-              <DollarSign className="mr-2 size-4 text-green-500" />
+            <DropdownMenuCheckboxItem checked={activeFilter === "deposit_pending"} onCheckedChange={() => setActiveFilter("deposit_pending")}>
               Deposit Pending
             </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={activeFilter === "assigned"}
-              onCheckedChange={() => setActiveFilter("assigned")}
-            >
-              <UserCheck className="mr-2 size-4 text-blue-500" />
+            <DropdownMenuCheckboxItem checked={activeFilter === "assigned"} onCheckedChange={() => setActiveFilter("assigned")}>
               Assigned to Rep
             </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={activeFilter === "unassigned"}
-              onCheckedChange={() => setActiveFilter("unassigned")}
-            >
-              <Clock className="mr-2 size-4 text-muted-foreground" />
+            <DropdownMenuCheckboxItem checked={activeFilter === "unassigned"} onCheckedChange={() => setActiveFilter("unassigned")}>
               Unassigned
             </DropdownMenuCheckboxItem>
           </DropdownMenuContent>
@@ -282,9 +243,7 @@ export function KanbanBoard() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Lead</DialogTitle>
-              <DialogDescription>
-                Enter the details for the new lead. They will be added to the New Lead column.
-              </DialogDescription>
+              <DialogDescription>They will appear in the New Lead column.</DialogDescription>
             </DialogHeader>
             <AddLeadForm onSubmit={handleAddLead} onCancel={() => setIsAddLeadOpen(false)} />
           </DialogContent>
@@ -310,10 +269,11 @@ export function KanbanBoard() {
                 onLeadClick={handleLeadClick}
               />
             ))}
+
             <DragOverlay>
-              {activeLead ? (
-                <LeadCard lead={activeLead} isDragging />
-              ) : null}
+              {activeId && leads.find((l) => l.id === activeId) && (
+                <LeadCard lead={leads.find((l) => l.id === activeId)!} isDragging />
+              )}
             </DragOverlay>
           </DndContext>
         </div>
@@ -323,6 +283,7 @@ export function KanbanBoard() {
   )
 }
 
+// Keep your AddLeadForm as is
 function AddLeadForm({
   onSubmit,
   onCancel,
@@ -348,61 +309,27 @@ function AddLeadForm({
       <div className="grid gap-4 py-4">
         <div className="grid gap-2">
           <Label htmlFor="name">Customer Name</Label>
-          <Input
-            id="name"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="John Smith"
-            required
-          />
+          <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="John Smith" required />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="phone">Phone Number</Label>
-          <Input
-            id="phone"
-            value={formData.phone}
-            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-            placeholder="(555) 123-4567"
-            required
-          />
+          <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="(555) 123-4567" required />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            placeholder="john@email.com"
-            required
-          />
+          <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="john@email.com" required />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="budget">Budget</Label>
-          <Input
-            id="budget"
-            type="number"
-            value={formData.budget}
-            onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
-            placeholder="25000"
-            required
-          />
+          <Input id="budget" type="number" value={formData.budget} onChange={(e) => setFormData({ ...formData, budget: e.target.value })} placeholder="25000" required />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="vehicle">Preferred Vehicle</Label>
-          <Input
-            id="vehicle"
-            value={formData.vehicle}
-            onChange={(e) => setFormData({ ...formData, vehicle: e.target.value })}
-            placeholder="Toyota Camry 2022"
-            required
-          />
+          <Input id="vehicle" value={formData.vehicle} onChange={(e) => setFormData({ ...formData, vehicle: e.target.value })} placeholder="Toyota Camry 2022" required />
         </div>
       </div>
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
         <Button type="submit">Add Lead</Button>
       </DialogFooter>
     </form>
