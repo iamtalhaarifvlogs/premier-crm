@@ -92,14 +92,17 @@ export interface ScheduledJob {
   status: "pending" | "completed" | "cancelled"
 }
 
-const API_BASE = "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data"
+/* =============================================
+   IMPORTANT: Using Vercel Proxy Route
+   ============================================= */
+const API_BASE = "/api/crm"   // ← This calls your local proxy, not AWS directly
 
 async function fetchTable<T>(tableName: string): Promise<any[]> {
   try {
-    console.log(`[fetchTable] Fetching ${tableName}...`)
+    console.log(`[fetchTable] Fetching ${tableName} via proxy...`)
 
     const response = await fetch(
-      `\( {API_BASE}?TableName= \){tableName}`,
+      `\( {API_BASE}/ \){tableName}`,
       {
         method: "GET",
         cache: "no-store",
@@ -117,6 +120,7 @@ async function fetchTable<T>(tableName: string): Promise<any[]> {
     }
 
     const data = await response.json()
+
     console.log(`[fetchTable] ${tableName} response:`, {
       count: data.Count || data.length,
       hasItems: !!data.Items,
