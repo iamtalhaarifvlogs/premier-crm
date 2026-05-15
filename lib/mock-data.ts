@@ -93,7 +93,7 @@ export interface ScheduledJob {
 }
 
 /* =============================================
-   DIRECT AWS FETCH (No Proxy)
+   DIRECT AWS CONNECTION
    ============================================= */
 const AWS_API = "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data"
 
@@ -102,32 +102,24 @@ async function fetchTable(tableName: string): Promise<any[]> {
     console.log(`[fetchTable] Fetching ${tableName} from AWS...`)
 
     const response = await fetch(
-      `\( {AWS_API}?TableName= \){tableName}`,
+      `\( {AWS_API}?TableName= \){tableName}`,   // ← THIS LINE MUST BE EXACTLY LIKE THIS
       {
         method: "GET",
         cache: "no-store",
         next: { revalidate: 0 },
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
       }
     )
 
-    console.log(`[fetchTable] ${tableName} → Status: ${response.status}`)
-
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(`[fetchTable] AWS Error ${response.status}:`, errorText)
-      throw new Error(`AWS Error ${response.status}: ${errorText.substring(0, 150)}`)
+      throw new Error(`AWS Error ${response.status}: ${errorText}`)
     }
 
     const data = await response.json()
-    const items = Array.isArray(data) ? data : data.Items || []
-
-    console.log(`[fetchTable] ${tableName} → ${items.length} items received`)
-    return items
+    return Array.isArray(data) ? data : data.Items || []
   } catch (error: any) {
-    console.error(`[fetchTable] Failed to fetch ${tableName}:`, error.message)
+    console.error(`[fetchTable] Error for ${tableName}:`, error.message)
     throw error
   }
 }
@@ -150,11 +142,11 @@ export async function getLeads(): Promise<Lead[]> {
     preferredVehicle: lead.preferredVehicle || lead.preferred_vehicle || "Unknown Vehicle",
     stage: (lead.stage || "new_lead") as PipelineStage,
     statuses: Array.isArray(lead.statuses) ? lead.statuses : [],
-    assignedRep: lead.assignedRep || lead.assigned_rep || null,
-    lastActivity: lead.lastActivity || lead.last_activity || "N/A",
-    downPayment: Number(lead.downPayment || lead.down_payment || 0),
+    assignedRep: lead.assignedRep || null,
+    lastActivity: lead.lastActivity || "N/A",
+    downPayment: Number(lead.downPayment || 0),
     location: lead.location || "Unknown",
-    creditStatus: lead.creditStatus || lead.credit_status || "good",
+    creditStatus: lead.creditStatus || "good",
     timeline: lead.timeline || "Unknown",
     createdAt: lead.createdAt || lead.created_at || new Date().toISOString(),
   }))
@@ -176,39 +168,13 @@ export async function getMessages(): Promise<Record<string, Message[]>> {
       timestamp: message.timestamp || new Date().toISOString(),
     })
   })
-
   return grouped
 }
 
-export async function getWorkflowLogs(): Promise<WorkflowLog[]> {
-  return fetchTable("tbl_workflow_logs")
-}
-
-export async function getStageHistory(): Promise<Record<string, StageHistoryItem[]>> {
-  const history = await fetchTable("tbl_stage_history")
-  const grouped: Record<string, StageHistoryItem[]> = {}
-
-  history.forEach((item: any) => {
-    const leadId = item.leadId || item.lead_id || item.leadId
-    if (!leadId) return
-    if (!grouped[leadId]) grouped[leadId] = []
-    grouped[leadId].push({
-      stage: item.stage,
-      timestamp: item.timestamp,
-      note: item.note,
-    })
-  })
-
-  return grouped
-}
-
-export async function getVehicleMatches(): Promise<VehicleMatch[]> {
-  return fetchTable("tbl_vehicle_matches")
-}
-
-export async function getScheduledJobs(): Promise<ScheduledJob[]> {
-  return fetchTable("tbl_scheduled_jobs")
-}
+export async function getWorkflowLogs() { return fetchTable("tbl_workflow_logs") }
+export async function getStageHistory() { return fetchTable("tbl_stage_history") }
+export async function getVehicleMatches() { return fetchTable("tbl_vehicle_matches") }
+export async function getScheduledJobs() { return fetchTable("tbl_scheduled_jobs") }
 
 /*
 |--------------------------------------------------------------------------
@@ -217,10 +183,7 @@ export async function getScheduledJobs(): Promise<ScheduledJob[]> {
 */
 
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(amount)
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount)
 }
 
 export function getLeadsByStage(leads: Lead[], stage: PipelineStage): Lead[] {
@@ -247,7 +210,7 @@ export function getStatusLabel(status: LeadStatus): string {
   }
 }
 
-// Empty mocks (kept for compatibility)
+// Empty mocks
 export const mockLeads: Lead[] = []
 export const mockMessages: Record<string, Message[]> = {}
 export const mockWorkflowLogs: WorkflowLog[] = []
