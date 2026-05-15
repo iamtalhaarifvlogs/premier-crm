@@ -20,8 +20,15 @@ import {
   ChevronRight,
 } from "lucide-react"
 
-import { useCRM, mockMessages, mockStageHistory, mockVehicleMatches } from "@/lib/crm-context"
-import { Lead, PIPELINE_STAGES, formatCurrency, getStatusColor, getStatusLabel } from "@/lib/mock-data"
+import { useCRM } from "@/lib/crm-context"
+import { 
+  Lead, 
+  PIPELINE_STAGES, 
+  formatCurrency, 
+  getStatusColor, 
+  getStatusLabel,
+  getStageHistory 
+} from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -44,6 +51,24 @@ export function LeadDetailContent() {
 
   const leadId = params.id as string
   const lead = leads.find((l) => l.id === leadId)
+
+  const [stageHistory, setStageHistory] = React.useState<any[]>([])
+
+  // Load real stage history
+  React.useEffect(() => {
+    async function loadStageHistory() {
+      if (!lead) return
+      try {
+        const history = await getStageHistory()
+        setStageHistory(history[lead.id] || [
+          { stage: lead.stage, timestamp: lead.createdAt, note: "Lead created" }
+        ])
+      } catch (err) {
+        console.error("Failed to load stage history:", err)
+      }
+    }
+    loadStageHistory()
+  }, [lead])
 
   const toggleStatus = (status: "hot" | "automation_paused" | "deposit_paid") => {
     if (!lead) return
@@ -75,10 +100,6 @@ export function LeadDetailContent() {
       </div>
     )
   }
-
-  const stageHistory = mockStageHistory[lead.id] || [
-    { stage: lead.stage, timestamp: lead.createdAt, note: "Lead created" },
-  ]
 
   return (
     <div className="flex h-full flex-col">
@@ -140,30 +161,10 @@ export function LeadDetailContent() {
       <Tabs defaultValue="overview" className="flex-1 flex flex-col min-h-0">
         <div className="border-b px-4">
           <TabsList className="h-12 w-full justify-start rounded-none border-0 bg-transparent p-0">
-            <TabsTrigger
-              value="overview"
-              className="rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-            >
-              Overview
-            </TabsTrigger>
-            <TabsTrigger
-              value="conversation"
-              className="rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-            >
-              Conversation
-            </TabsTrigger>
-            <TabsTrigger
-              value="workflow"
-              className="rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-            >
-              Workflow Logs
-            </TabsTrigger>
-            <TabsTrigger
-              value="sourcing"
-              className="rounded-none border-b-2 border-transparent px-4 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-            >
-              Sourcing
-            </TabsTrigger>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="conversation">Conversation</TabsTrigger>
+            <TabsTrigger value="workflow">Workflow Logs</TabsTrigger>
+            <TabsTrigger value="sourcing">Sourcing</TabsTrigger>
           </TabsList>
         </div>
 
