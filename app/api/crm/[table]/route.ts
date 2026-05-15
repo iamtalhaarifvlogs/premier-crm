@@ -9,33 +9,26 @@ export async function GET(
 ) {
   const tableName = params.table;
 
-  console.log(`[API Proxy] Fetching table: ${tableName}`);
+  console.log(`[API Proxy] Request received for table: ${tableName}`);
 
   try {
     const response = await fetch(
       `\( {API_BASE}?TableName= \){tableName}`,
       {
         method: "GET",
-        cache: "no-store",           // Force fresh fetch
-        next: { revalidate: 0 },     // Disable caching
-        headers: {
-          "Content-Type": "application/json",
-        },
+        cache: "no-store",
+        next: { revalidate: 0 },
       }
     );
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[API Proxy] HTTP ${response.status}:`, errorText);
-      return NextResponse.json({ error: `Failed to fetch ${tableName}` }, { status: response.status });
+      return NextResponse.json({ error: `AWS Error ${response.status}` }, { status: response.status });
     }
 
     const data = await response.json();
-    console.log(`[API Proxy] ${tableName} → ${data.Items?.length || data.length || 0} items`);
-
     return NextResponse.json(data);
   } catch (error) {
-    console.error(`[API Proxy] Error:`, error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("[API Proxy] Error:", error);
+    return NextResponse.json({ error: "Proxy failed" }, { status: 500 });
   }
 }
