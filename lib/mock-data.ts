@@ -92,37 +92,48 @@ export interface ScheduledJob {
   status: "pending" | "completed" | "cancelled"
 }
 
-const API_BASE =
-  "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data"
+const API_BASE = "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data"
 
 async function fetchTable<T>(tableName: string): Promise<any[]> {
   try {
+    console.log(`[fetchTable] Fetching ${tableName}...`)
+
     const response = await fetch(
-      `${API_BASE}?TableName=${tableName}`,
+      `\( {API_BASE}?TableName= \){tableName}`,
       {
+        method: "GET",
         cache: "no-store",
+        next: { revalidate: 0 },
+        headers: {
+          "Content-Type": "application/json",
+        },
       }
     )
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch ${tableName}`)
+      const errorText = await response.text()
+      console.error(`[fetchTable] HTTP ${response.status} for ${tableName}:`, errorText)
+      throw new Error(`Failed to fetch ${tableName}: ${response.status}`)
     }
 
     const data = await response.json()
-
-    console.log("API RESPONSE:", tableName, data)
+    console.log(`[fetchTable] ${tableName} response:`, {
+      count: data.Count || data.length,
+      hasItems: !!data.Items,
+      itemCount: data.Items?.length || data.length
+    })
 
     if (Array.isArray(data)) {
       return data
     }
-
     if (data.Items && Array.isArray(data.Items)) {
       return data.Items
     }
 
+    console.warn(`[fetchTable] Unexpected response format for ${tableName}`, data)
     return []
   } catch (error) {
-    console.error(`Error fetching ${tableName}:`, error)
+    console.error(`[fetchTable] Error fetching ${tableName}:`, error)
     return []
   }
 }
@@ -136,46 +147,35 @@ async function fetchTable<T>(tableName: string): Promise<any[]> {
 export async function getLeads(): Promise<Lead[]> {
   const rawLeads = await fetchTable<any>("tbl_leads")
 
-  return rawLeads.map((lead, index) => ({
-    id: lead.id || lead.lead_id || `lead-${index}`,
+  console.log(`[getLeads] Raw items received: ${rawLeads.length}`)
 
-    name: lead.name || "Unknown",
+  return rawLeads.map((lead: any, index: number) => {
+    const id = lead.id || lead.lead_id || lead.leadId || `lead-${index}`
 
-    phone: lead.phone || "",
-
-    email: lead.email || "",
-
-    budget: Number(lead.budget || 0),
-
-    preferredVehicle:
-      lead.preferredVehicle ||
-      lead.preferred_vehicle ||
-      "Unknown Vehicle",
-
-    stage: (lead.stage || "new_lead") as PipelineStage,
-
-    statuses: Array.isArray(lead.statuses)
-      ? lead.statuses
-      : [],
-
-    assignedRep: lead.assignedRep || null,
-
-    lastActivity: lead.lastActivity || "N/A",
-
-    downPayment: Number(lead.downPayment || 0),
-
-    location: lead.location || "Unknown",
-
-    creditStatus:
-      lead.creditStatus || "good",
-
-    timeline: lead.timeline || "Unknown",
-
-    createdAt:
-      lead.createdAt ||
-      lead.created_at ||
-      new Date().toISOString(),
-  }))
+    return {
+      id,
+      name: lead.name || "Unknown",
+      phone: lead.phone || "",
+      email: lead.email || "",
+      budget: Number(lead.budget || 0),
+      preferredVehicle:
+        lead.preferredVehicle ||
+        lead.preferred_vehicle ||
+        "Unknown Vehicle",
+      stage: (lead.stage || "new_lead") as PipelineStage,
+      statuses: Array.isArray(lead.statuses) ? lead.statuses : [],
+      assignedRep: lead.assignedRep || lead.assigned_rep || null,
+      lastActivity: lead.lastActivity || lead.last_activity || "N/A",
+      downPayment: Number(lead.downPayment || lead.down_payment || 0),
+      location: lead.location || "Unknown",
+      creditStatus: lead.creditStatus || lead.credit_status || "good",
+      timeline: lead.timeline || "Unknown",
+      createdAt:
+        lead.createdAt ||
+        lead.created_at ||
+        new Date().toISOString(),
+    }
+  })
 }
 
 /*
@@ -184,24 +184,25 @@ export async function getLeads(): Promise<Lead[]> {
 |--------------------------------------------------------------------------
 */
 
-export async function getMessages(): Promise<
-  Record<string, Message[]>
-> {
-  const messages = await fetchTable<Message>("tbl_messages")
+export async function getMessages(): Promise<Record<string, Message[]>> {
+  const messages = await fetchTable<any>("tbl_messages")
 
   const grouped: Record<string, Message[]> = {}
 
   messages.forEach((message: any) => {
-    const leadId =
-      message.leadId || message.lead_id
+    const leadId = message.leadId || message.lead_id || message.leadId
+    if (!leadId) return
 
     if (!grouped[leadId]) {
       grouped[leadId] = []
     }
 
     grouped[leadId].push({
-      ...message,
+      id: message.id || message.message_id || `msg-${Date.now()}`,
       leadId,
+      sender: message.sender || "customer",
+      content: message.content || "",
+      timestamp: message.timestamp || new Date().toISOString(),
     })
   })
 
@@ -214,9 +215,7 @@ export async function getMessages(): Promise<
 |--------------------------------------------------------------------------
 */
 
-export async function getWorkflowLogs(): Promise<
-  WorkflowLog[]
-> {
+export async function getWorkflowLogs(): Promise<WorkflowLog[]> {
   return fetchTable<WorkflowLog>("tbl_workflow_logs")
 }
 
@@ -226,21 +225,14 @@ export async function getWorkflowLogs(): Promise<
 |--------------------------------------------------------------------------
 */
 
-export async function getStageHistory(): Promise<
-  Record<string, StageHistoryItem[]>
-> {
-  const history = await fetchTable<any>(
-    "tbl_stage_history"
-  )
+export async function getStageHistory(): Promise<Record<string, StageHistoryItem[]>> {
+  const history = await fetchTable<any>("tbl_stage_history")
 
-  const grouped: Record<
-    string,
-    StageHistoryItem[]
-  > = {}
+  const grouped: Record<string, StageHistoryItem[]> = {}
 
-  history.forEach((item) => {
-    const leadId =
-      item.leadId || item.lead_id
+  history.forEach((item: any) => {
+    const leadId = item.leadId || item.lead_id || item.leadId
+    if (!leadId) return
 
     if (!grouped[leadId]) {
       grouped[leadId] = []
@@ -262,12 +254,8 @@ export async function getStageHistory(): Promise<
 |--------------------------------------------------------------------------
 */
 
-export async function getVehicleMatches(): Promise<
-  VehicleMatch[]
-> {
-  return fetchTable<VehicleMatch>(
-    "tbl_vehicle_matches"
-  )
+export async function getVehicleMatches(): Promise<VehicleMatch[]> {
+  return fetchTable<VehicleMatch>("tbl_vehicle_matches")
 }
 
 /*
@@ -276,37 +264,9 @@ export async function getVehicleMatches(): Promise<
 |--------------------------------------------------------------------------
 */
 
-export async function getScheduledJobs(): Promise<
-  ScheduledJob[]
-> {
-  return fetchTable<ScheduledJob>(
-    "tbl_scheduled_jobs"
-  )
+export async function getScheduledJobs(): Promise<ScheduledJob[]> {
+  return fetchTable<ScheduledJob>("tbl_scheduled_jobs")
 }
-
-/*
-|--------------------------------------------------------------------------
-| EMPTY EXPORTS
-|--------------------------------------------------------------------------
-*/
-
-export const mockLeads: Lead[] = []
-
-export const mockMessages: Record<
-  string,
-  Message[]
-> = {}
-
-export const mockWorkflowLogs: WorkflowLog[] = []
-
-export const mockStageHistory: Record<
-  string,
-  StageHistoryItem[]
-> = {}
-
-export const mockVehicleMatches: VehicleMatch[] = []
-
-export const mockScheduledJobs: ScheduledJob[] = []
 
 /*
 |--------------------------------------------------------------------------
@@ -314,9 +274,7 @@ export const mockScheduledJobs: ScheduledJob[] = []
 |--------------------------------------------------------------------------
 */
 
-export function formatCurrency(
-  amount: number
-): string {
+export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -325,53 +283,44 @@ export function formatCurrency(
   }).format(amount)
 }
 
-export function getLeadsByStage(
-  leads: Lead[],
-  stage: PipelineStage
-): Lead[] {
-  return leads.filter(
-    (lead) => lead.stage === stage
-  )
+export function getLeadsByStage(leads: Lead[], stage: PipelineStage): Lead[] {
+  return leads.filter((lead) => lead.stage === stage)
 }
 
-export function getStatusColor(
-  status: LeadStatus
-): string {
+export function getStatusColor(status: LeadStatus): string {
   switch (status) {
     case "hot":
       return "bg-orange-100 text-orange-700 border-orange-200"
-
     case "automation_paused":
       return "bg-yellow-100 text-yellow-700 border-yellow-200"
-
     case "customer_replied":
       return "bg-green-100 text-green-700 border-green-200"
-
     case "deposit_paid":
       return "bg-blue-100 text-blue-700 border-blue-200"
-
     default:
       return "bg-muted text-muted-foreground"
   }
 }
 
-export function getStatusLabel(
-  status: LeadStatus
-): string {
+export function getStatusLabel(status: LeadStatus): string {
   switch (status) {
     case "hot":
       return "Hot Lead"
-
     case "automation_paused":
       return "Automation Paused"
-
     case "customer_replied":
       return "Customer Replied"
-
     case "deposit_paid":
       return "Deposit Paid"
-
     default:
       return status
   }
 }
+
+// Empty mocks (kept for compatibility)
+export const mockLeads: Lead[] = []
+export const mockMessages: Record<string, Message[]> = {}
+export const mockWorkflowLogs: WorkflowLog[] = []
+export const mockStageHistory: Record<string, StageHistoryItem[]> = {}
+export const mockVehicleMatches: VehicleMatch[] = []
+export const mockScheduledJobs: ScheduledJob[] = []
