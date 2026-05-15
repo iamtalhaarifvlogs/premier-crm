@@ -3,8 +3,15 @@
 import * as React from "react"
 import { X, Phone, Mail, MapPin, Calendar, DollarSign, CreditCard, Clock, User, Flame, Pause, CheckCircle } from "lucide-react"
 
-import { useCRM, mockMessages, mockStageHistory, mockVehicleMatches } from "@/lib/crm-context"
-import { Lead, PIPELINE_STAGES, formatCurrency, getStatusColor, getStatusLabel } from "@/lib/mock-data"
+import { useCRM } from "@/lib/crm-context"
+import { 
+  Lead, 
+  PIPELINE_STAGES, 
+  formatCurrency, 
+  getStatusColor, 
+  getStatusLabel,
+  getStageHistory 
+} from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -12,7 +19,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 
@@ -23,10 +30,38 @@ import { SourcingTab } from "./sourcing-tab"
 export function LeadDetailsPanel() {
   const { selectedLead, setSelectedLead, isDetailsPanelOpen, setIsDetailsPanelOpen, leads, setLeads } = useCRM()
 
+  const [stageHistory, setStageHistory] = React.useState<any[]>([])
+  const [loadingHistory, setLoadingHistory] = React.useState(false)
+
   const handleClose = () => {
     setIsDetailsPanelOpen(false)
     setTimeout(() => setSelectedLead(null), 300)
   }
+
+  // Load real stage history
+  React.useEffect(() => {
+    async function loadStageHistory() {
+      if (!selectedLead) return
+      setLoadingHistory(true)
+      try {
+        const history = await getStageHistory()
+        setStageHistory(history[selectedLead.id] || [
+          { stage: selectedLead.stage, timestamp: selectedLead.createdAt, note: "Lead created" }
+        ])
+      } catch (err) {
+        console.error("Failed to load stage history:", err)
+        setStageHistory([
+          { stage: selectedLead.stage, timestamp: selectedLead.createdAt, note: "Lead created" }
+        ])
+      } finally {
+        setLoadingHistory(false)
+      }
+    }
+
+    if (selectedLead) {
+      loadStageHistory()
+    }
+  }, [selectedLead])
 
   const toggleStatus = (status: "hot" | "automation_paused" | "deposit_paid") => {
     if (!selectedLead) return
@@ -44,7 +79,6 @@ export function LeadDetailsPanel() {
       )
     )
 
-    // Update selected lead as well
     setSelectedLead({
       ...selectedLead,
       statuses: selectedLead.statuses.includes(status)
@@ -54,10 +88,6 @@ export function LeadDetailsPanel() {
   }
 
   if (!selectedLead) return null
-
-  const stageHistory = mockStageHistory[selectedLead.id] || [
-    { stage: selectedLead.stage, timestamp: selectedLead.createdAt, note: "Lead created" },
-  ]
 
   return (
     <Sheet open={isDetailsPanelOpen} onOpenChange={setIsDetailsPanelOpen}>
@@ -172,27 +202,31 @@ export function LeadDetailsPanel() {
                     <CardTitle className="text-base">Stage History</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="relative pl-4">
-                      <div className="absolute left-0 top-2 bottom-2 w-px bg-border" />
-                      <div className="space-y-4">
-                        {stageHistory.map((item, index) => (
-                          <div key={index} className="relative pl-4">
-                            <div className="absolute -left-4 top-1.5 size-2 rounded-full bg-primary" />
-                            <div>
-                              <p className="text-sm font-medium">
-                                {PIPELINE_STAGES.find((s) => s.id === item.stage)?.name}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {new Date(item.timestamp).toLocaleString()}
-                              </p>
-                              {item.note && (
-                                <p className="text-xs text-muted-foreground mt-1">{item.note}</p>
-                              )}
+                    {loadingHistory ? (
+                      <p className="text-sm text-muted-foreground">Loading history...</p>
+                    ) : (
+                      <div className="relative pl-4">
+                        <div className="absolute left-0 top-2 bottom-2 w-px bg-border" />
+                        <div className="space-y-4">
+                          {stageHistory.map((item, index) => (
+                            <div key={index} className="relative pl-4">
+                              <div className="absolute -left-4 top-1.5 size-2 rounded-full bg-primary" />
+                              <div>
+                                <p className="text-sm font-medium">
+                                  {PIPELINE_STAGES.find((s) => s.id === item.stage)?.name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(item.timestamp).toLocaleString()}
+                                </p>
+                                {item.note && (
+                                  <p className="text-xs text-muted-foreground mt-1">{item.note}</p>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
 
