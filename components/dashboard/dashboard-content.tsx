@@ -23,7 +23,6 @@ import {
   CartesianGrid,
 } from "recharts"
 
-import { useCRM } from "@/lib/crm-context"
 import { PIPELINE_STAGES, formatCurrency } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -33,21 +32,35 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 
-export function DashboardContent() {
-  const { leads } = useCRM()
+interface DashboardContentProps {
+  leads: any[]
+  messages?: Record<string, any[]>
+  workflowLogs?: any[]
+  stageHistory?: Record<string, any[]>
+  vehicleMatches?: any[]
+  error: string | null
+}
 
+export function DashboardContent({
+  leads = [],
+  messages = {},
+  workflowLogs = [],
+  stageHistory = {},
+  vehicleMatches = [],
+  error,
+}: DashboardContentProps) {
   // Calculate metrics
   const totalLeads = leads.length
-  const hotLeads = leads.filter((l) => l.statuses.includes("hot")).length
+  const hotLeads = leads.filter((l) => l.statuses?.includes("hot")).length
   const depositsPending = leads.filter(
-    (l) => l.stage === "deposit_requested" && !l.statuses.includes("deposit_paid")
+    (l) => l.stage === "deposit_requested" && !l.statuses?.includes("deposit_paid")
   ).length
-  const depositsPaid = leads.filter((l) => l.statuses.includes("deposit_paid")).length
+  const depositsPaid = leads.filter((l) => l.statuses?.includes("deposit_paid")).length
   const repHandoffsToday = leads.filter((l) => l.stage === "rep_handoff").length
   const coldLeads = leads.filter(
     (l) =>
-      (l.stage === "closed_lost" || l.lastActivity.includes("d")) &&
-      !l.statuses.includes("hot")
+      (l.stage === "closed_lost" || l.lastActivity?.includes("d")) &&
+      !l.statuses?.includes("hot")
   ).length
 
   // Chart data - leads per stage
@@ -57,7 +70,7 @@ export function DashboardContent() {
     count: leads.filter((l) => l.stage === stage.id).length,
   }))
 
-  // Chart data - follow-ups over time (mock data)
+  // Chart data - follow-ups over time (mock for now)
   const followUpsData = [
     { day: "Mon", followUps: 12 },
     { day: "Tue", followUps: 19 },
@@ -76,6 +89,16 @@ export function DashboardContent() {
           Overview of your vehicle sales CRM performance
         </p>
       </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-100 border border-red-600 text-red-700 px-6 py-4 rounded-2xl text-center font-medium">
+          ❌ {error}
+          <p className="text-sm mt-2 text-red-600">
+            Make sure the proxy route (`app/api/crm/[table]/route.ts`) is deployed correctly.
+          </p>
+        </div>
+      )}
 
       {/* Metrics Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -243,6 +266,12 @@ export function DashboardContent() {
                 </div>
               </div>
             ))}
+
+            {leads.length === 0 && (
+              <p className="text-center text-muted-foreground py-8">
+                No leads available yet
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
