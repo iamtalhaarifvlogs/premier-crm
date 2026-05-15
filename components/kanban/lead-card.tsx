@@ -27,40 +27,41 @@ export function LeadCard({ lead, isDragging, onClick }: LeadCardProps) {
   return (
     <Card
       className={cn(
-        "cursor-pointer transition-all hover:shadow-md",
+        "cursor-pointer transition-all hover:shadow-md active:scale-[0.985]",
         isDragging && "rotate-2 scale-105 shadow-lg opacity-90"
       )}
       onClick={onClick}
     >
       <CardContent className="p-3">
-        {/* Customer Name */}
+        {/* Header */}
         <div className="mb-2 flex items-start justify-between">
-          <h4 className="font-medium text-sm leading-tight">{lead.name}</h4>
-          <span className="text-xs text-muted-foreground">{lead.lastActivity}</span>
+          <h4 className="font-medium text-sm leading-tight line-clamp-1">{lead.name}</h4>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {lead.lastActivity}
+          </span>
         </div>
 
-        {/* Phone */}
+        {/* Contact Info */}
         <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
           <Phone className="size-3" />
           <span>{lead.phone}</span>
         </div>
 
-        {/* Budget */}
-        <div className="mb-2 flex items-center gap-1.5">
-          <Badge variant="outline" className="h-5 text-xs font-medium">
+        {/* Budget & Vehicle */}
+        <div className="mb-3 flex items-center justify-between">
+          <Badge variant="outline" className="font-medium">
             {formatCurrency(lead.budget)}
           </Badge>
-        </div>
 
-        {/* Preferred Vehicle */}
-        <div className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Car className="size-3" />
-          <span className="truncate">{lead.preferredVehicle}</span>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Car className="size-3" />
+            <span className="truncate max-w-[140px]">{lead.preferredVehicle}</span>
+          </div>
         </div>
 
         {/* Status Badges */}
-        {lead.statuses.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-1">
+        {lead.statuses && lead.statuses.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-1">
             {lead.statuses.map((status) => (
               <Badge
                 key={status}
@@ -107,9 +108,13 @@ export function SortableLeadCard({ lead, onClick }: { lead: Lead; onClick?: () =
       style={style}
       {...attributes}
       {...listeners}
-      className={cn(isDragging && "opacity-50")}
+      className={cn(isDragging && "opacity-50 z-50")}
     >
-      <LeadCard lead={lead} onClick={onClick} />
+      <LeadCard 
+        lead={lead} 
+        isDragging={isDragging} 
+        onClick={onClick} 
+      />
     </div>
   )
 }
