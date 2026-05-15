@@ -17,10 +17,7 @@ export type PipelineStage =
   | "closed_won"
   | "closed_lost"
 
-export const PIPELINE_STAGES: {
-  id: PipelineStage
-  name: string
-}[] = [
+export const PIPELINE_STAGES: { id: PipelineStage; name: string }[] = [
   { id: "new_lead", name: "New Lead" },
   { id: "maya_qualification", name: "Maya Qualification" },
   { id: "vehicle_sourcing", name: "Vehicle Sourcing" },
@@ -98,9 +95,7 @@ export interface ScheduledJob {
 const API_BASE =
   "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data"
 
-async function fetchTable<T>(
-  tableName: string
-): Promise<T[]> {
+async function fetchTable<T>(tableName: string): Promise<any[]> {
   try {
     const response = await fetch(
       `${API_BASE}?TableName=${tableName}`,
@@ -110,48 +105,24 @@ async function fetchTable<T>(
     )
 
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch ${tableName}`
-      )
+      throw new Error(`Failed to fetch ${tableName}`)
     }
 
     const data = await response.json()
 
-    console.log(
-      `Fetched ${tableName}:`,
-      data
-    )
+    console.log("API RESPONSE:", tableName, data)
 
     if (Array.isArray(data)) {
       return data
     }
 
-    if (Array.isArray(data.Items)) {
+    if (data.Items && Array.isArray(data.Items)) {
       return data.Items
-    }
-
-    if (data.body) {
-      const parsed =
-        typeof data.body === "string"
-          ? JSON.parse(data.body)
-          : data.body
-
-      if (Array.isArray(parsed)) {
-        return parsed
-      }
-
-      if (Array.isArray(parsed.Items)) {
-        return parsed.Items
-      }
     }
 
     return []
   } catch (error) {
-    console.error(
-      `Error fetching ${tableName}:`,
-      error
-    )
-
+    console.error(`Error fetching ${tableName}:`, error)
     return []
   }
 }
@@ -162,78 +133,43 @@ async function fetchTable<T>(
 |--------------------------------------------------------------------------
 */
 
-export async function getLeads(): Promise<
-  Lead[]
-> {
-  const leads = await fetchTable<any>(
-    "tbl_leads"
-  )
+export async function getLeads(): Promise<Lead[]> {
+  const rawLeads = await fetchTable<any>("tbl_leads")
 
-  return leads.map((lead) => ({
-    id:
-      lead.id ||
-      lead.lead_id ||
-      "",
+  return rawLeads.map((lead, index) => ({
+    id: lead.id || lead.lead_id || `lead-${index}`,
 
-    name:
-      lead.name ||
-      "",
+    name: lead.name || "Unknown",
 
-    phone:
-      lead.phone ||
-      "",
+    phone: lead.phone || "",
 
-    email:
-      lead.email ||
-      "",
+    email: lead.email || "",
 
-    budget: Number(
-      lead.budget || 0
-    ),
+    budget: Number(lead.budget || 0),
 
     preferredVehicle:
       lead.preferredVehicle ||
       lead.preferred_vehicle ||
-      "",
+      "Unknown Vehicle",
 
-    stage:
-      lead.stage ||
-      "new_lead",
+    stage: (lead.stage || "new_lead") as PipelineStage,
 
-    statuses: Array.isArray(
-      lead.statuses
-    )
+    statuses: Array.isArray(lead.statuses)
       ? lead.statuses
       : [],
 
-    assignedRep:
-      lead.assignedRep ||
-      lead.assigned_rep ||
-      null,
+    assignedRep: lead.assignedRep || null,
 
-    lastActivity:
-      lead.lastActivity ||
-      lead.last_activity ||
-      "",
+    lastActivity: lead.lastActivity || "N/A",
 
-    downPayment: Number(
-      lead.downPayment ||
-        lead.down_payment ||
-        0
-    ),
+    downPayment: Number(lead.downPayment || 0),
 
-    location:
-      lead.location ||
-      "",
+    location: lead.location || "Unknown",
 
     creditStatus:
-      lead.creditStatus ||
-      lead.credit_status ||
-      "good",
+      lead.creditStatus || "good",
 
-    timeline:
-      lead.timeline ||
-      "",
+    timeline: lead.timeline || "Unknown",
 
     createdAt:
       lead.createdAt ||
@@ -251,50 +187,22 @@ export async function getLeads(): Promise<
 export async function getMessages(): Promise<
   Record<string, Message[]>
 > {
-  const messages =
-    await fetchTable<any>(
-      "tbl_messages"
-    )
+  const messages = await fetchTable<Message>("tbl_messages")
 
-  const grouped: Record<
-    string,
-    Message[]
-  > = {}
+  const grouped: Record<string, Message[]> = {}
 
-  messages.forEach((message) => {
-    const mapped: Message = {
-      id:
-        message.id ||
-        message.message_id ||
-        "",
+  messages.forEach((message: any) => {
+    const leadId =
+      message.leadId || message.lead_id
 
-      leadId:
-        message.leadId ||
-        message.lead_id ||
-        "",
-
-      sender:
-        message.sender ||
-        "system",
-
-      content:
-        message.content ||
-        "",
-
-      timestamp:
-        message.timestamp ||
-        new Date().toISOString(),
+    if (!grouped[leadId]) {
+      grouped[leadId] = []
     }
 
-    if (
-      !grouped[mapped.leadId]
-    ) {
-      grouped[mapped.leadId] = []
-    }
-
-    grouped[
-      mapped.leadId
-    ].push(mapped)
+    grouped[leadId].push({
+      ...message,
+      leadId,
+    })
   })
 
   return grouped
@@ -309,52 +217,7 @@ export async function getMessages(): Promise<
 export async function getWorkflowLogs(): Promise<
   WorkflowLog[]
 > {
-  const logs =
-    await fetchTable<any>(
-      "tbl_workflow_logs"
-    )
-
-  return logs.map((log) => ({
-    id:
-      log.id ||
-      log.workflow_id ||
-      "",
-
-    leadId:
-      log.leadId ||
-      log.lead_id ||
-      "",
-
-    timestamp:
-      log.timestamp ||
-      new Date().toISOString(),
-
-    workflowName:
-      log.workflowName ||
-      log.workflow_name ||
-      "",
-
-    triggerEvent:
-      log.triggerEvent ||
-      log.trigger_event ||
-      "",
-
-    action:
-      log.action ||
-      "",
-
-    status:
-      log.status ||
-      "success",
-
-    metadata:
-      typeof log.metadata ===
-      "string"
-        ? log.metadata
-        : JSON.stringify(
-            log.metadata || {}
-          ),
-  }))
+  return fetchTable<WorkflowLog>("tbl_workflow_logs")
 }
 
 /*
@@ -364,15 +227,11 @@ export async function getWorkflowLogs(): Promise<
 */
 
 export async function getStageHistory(): Promise<
-  Record<
-    string,
-    StageHistoryItem[]
-  >
+  Record<string, StageHistoryItem[]>
 > {
-  const history =
-    await fetchTable<any>(
-      "tbl_stage_history"
-    )
+  const history = await fetchTable<any>(
+    "tbl_stage_history"
+  )
 
   const grouped: Record<
     string,
@@ -381,25 +240,16 @@ export async function getStageHistory(): Promise<
 
   history.forEach((item) => {
     const leadId =
-      item.leadId ||
-      item.lead_id ||
-      ""
+      item.leadId || item.lead_id
 
     if (!grouped[leadId]) {
       grouped[leadId] = []
     }
 
     grouped[leadId].push({
-      stage:
-        item.stage ||
-        "new_lead",
-
-      timestamp:
-        item.timestamp ||
-        new Date().toISOString(),
-
-      note:
-        item.note || "",
+      stage: item.stage,
+      timestamp: item.timestamp,
+      note: item.note,
     })
   })
 
@@ -415,52 +265,8 @@ export async function getStageHistory(): Promise<
 export async function getVehicleMatches(): Promise<
   VehicleMatch[]
 > {
-  const matches =
-    await fetchTable<any>(
-      "tbl_vehicle_matches"
-    )
-
-  return matches.map(
-    (vehicle) => ({
-      id:
-        vehicle.id ||
-        vehicle.vehicle_id ||
-        "",
-
-      make:
-        vehicle.make ||
-        "",
-
-      model:
-        vehicle.model ||
-        "",
-
-      year: Number(
-        vehicle.year || 0
-      ),
-
-      price: Number(
-        vehicle.price || 0
-      ),
-
-      mileage: Number(
-        vehicle.mileage || 0
-      ),
-
-      color:
-        vehicle.color ||
-        "",
-
-      dealership:
-        vehicle.dealership ||
-        "",
-
-      matchScore: Number(
-        vehicle.matchScore ||
-          vehicle.match_score ||
-          0
-      ),
-    })
+  return fetchTable<VehicleMatch>(
+    "tbl_vehicle_matches"
   )
 }
 
@@ -473,65 +279,34 @@ export async function getVehicleMatches(): Promise<
 export async function getScheduledJobs(): Promise<
   ScheduledJob[]
 > {
-  const jobs =
-    await fetchTable<any>(
-      "tbl_scheduled_jobs"
-    )
-
-  return jobs.map((job) => ({
-    id:
-      job.id ||
-      job.job_id ||
-      "",
-
-    leadId:
-      job.leadId ||
-      job.lead_id ||
-      "",
-
-    runAt:
-      job.runAt ||
-      job.run_at ||
-      new Date().toISOString(),
-
-    jobType:
-      job.jobType ||
-      job.job_type ||
-      "",
-
-    status:
-      job.status ||
-      "pending",
-  }))
+  return fetchTable<ScheduledJob>(
+    "tbl_scheduled_jobs"
+  )
 }
 
 /*
 |--------------------------------------------------------------------------
-| EMPTY DEFAULT EXPORTS
+| EMPTY EXPORTS
 |--------------------------------------------------------------------------
 */
 
-export const mockLeads: Lead[] =
-  []
+export const mockLeads: Lead[] = []
 
 export const mockMessages: Record<
   string,
   Message[]
 > = {}
 
-export const mockWorkflowLogs: WorkflowLog[] =
-  []
+export const mockWorkflowLogs: WorkflowLog[] = []
 
 export const mockStageHistory: Record<
   string,
   StageHistoryItem[]
 > = {}
 
-export const mockVehicleMatches: VehicleMatch[] =
-  []
+export const mockVehicleMatches: VehicleMatch[] = []
 
-export const mockScheduledJobs: ScheduledJob[] =
-  []
+export const mockScheduledJobs: ScheduledJob[] = []
 
 /*
 |--------------------------------------------------------------------------
@@ -542,15 +317,12 @@ export const mockScheduledJobs: ScheduledJob[] =
 export function formatCurrency(
   amount: number
 ): string {
-  return new Intl.NumberFormat(
-    "en-US",
-    {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }
-  ).format(amount)
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount)
 }
 
 export function getLeadsByStage(
@@ -558,8 +330,7 @@ export function getLeadsByStage(
   stage: PipelineStage
 ): Lead[] {
   return leads.filter(
-    (lead) =>
-      lead.stage === stage
+    (lead) => lead.stage === stage
   )
 }
 
