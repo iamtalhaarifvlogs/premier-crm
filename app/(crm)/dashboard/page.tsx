@@ -10,12 +10,10 @@ export default async function DashboardPage() {
   let error: string | null = null
 
   try {
-    console.log("🔄 Fetching leads from proxy...")
     leads = await getLeads()
-    console.log(`✅ Loaded ${leads.length} leads successfully`)
   } catch (err: any) {
-    console.error("❌ Dashboard fetch error:", err)
-    error = "Failed to load leads. Check if proxy route is working."
+    error = "Failed to load data - Proxy route not working"
+    console.error(err)
   }
 
   return <DashboardContent leads={leads} error={error} />
