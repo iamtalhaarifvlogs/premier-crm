@@ -10,39 +10,50 @@ export async function GET(
   const tableName = params.table;
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000); // 25 seconds
+    console.log(`[Proxy] Calling AWS for: ${tableName}`);
 
     const response = await fetch(
       `\( {API_BASE}?TableName= \){tableName}`,
-      {
+      { 
         method: "GET",
-        signal: controller.signal,
         cache: "no-store",
         next: { revalidate: 0 },
       }
     );
 
-    clearTimeout(timeout);
+    console.log(`[Proxy] AWS Status: ${response.status} ${response.statusText}`);
+
+    const responseText = await response.text();   // Get raw response first
+
+    console.log(`[Proxy] Raw Response:`, responseText.substring(0, 500)); // First 500 chars
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => "No error body");
-      console.error(`AWS Error ${response.status}:`, errorText);
       return NextResponse.json({ 
-        error: `AWS returned ${response.status}`,
-        details: errorText 
+        error: `AWS HTTP ${response.status}`,
+        body: responseText 
       }, { status: response.status });
     }
 
-    const data = await response.json();
+    // Try to parse JSON
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      return NextResponse.json({ 
+        error: "Invalid JSON from AWS",
+        raw: responseText 
+      }, { status: 502 });
+    }
+
+    console.log(`[Proxy] Parsed successfully - Items: ${data.Items?.length || data.length || 0}`);
+
     return NextResponse.json(data);
 
   } catch (error: any) {
-    console.error("Proxy Error:", error.message);
+    console.error("[Proxy] Critical Error:", error);
     return NextResponse.json({ 
-      error: "Failed to fetch from AWS",
-      message: error.message,
-      suggestion: "Check Lambda CloudWatch logs for details"
+      error: "Proxy failed",
+      message: error.message 
     }, { status: 502 });
   }
 }
