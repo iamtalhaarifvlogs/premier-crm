@@ -28,7 +28,7 @@ import {
   getStatusColor,
   getStatusLabel,
   formatCurrency,
-  getLeads,        // Added for fallback
+  getLeads,
 } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -51,13 +51,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 
 import { KanbanColumn } from "./kanban-column"
 import { LeadCard } from "./lead-card"
@@ -70,24 +63,12 @@ export function KanbanBoard() {
   const [activeFilter, setActiveFilter] = React.useState<FilterType>("all")
   const [activeId, setActiveId] = React.useState<string | null>(null)
   const [isAddLeadOpen, setIsAddLeadOpen] = React.useState(false)
-  const [loading, setLoading] = React.useState(false)
 
-  // Ensure we have fresh leads
+  // Ensure leads are loaded
   React.useEffect(() => {
-    async function ensureLeads() {
-      if (leads.length === 0) {
-        setLoading(true)
-        try {
-          const freshLeads = await getLeads()
-          setLeads(freshLeads)
-        } catch (err) {
-          console.error("Failed to load leads in Kanban:", err)
-        } finally {
-          setLoading(false)
-        }
-      }
+    if (leads.length === 0) {
+      getLeads().then(setLeads).catch(console.error)
     }
-    ensureLeads()
   }, [leads.length, setLeads])
 
   const sensors = useSensors(
@@ -103,8 +84,8 @@ export function KanbanBoard() {
       result = result.filter((lead) =>
         lead.name.toLowerCase().includes(query) ||
         lead.phone.includes(query) ||
-        lead.preferredVehicle.toLowerCase().includes(query) ||
-        lead.email.toLowerCase().includes(query)
+        lead.email?.toLowerCase().includes(query) ||
+        lead.preferredVehicle.toLowerCase().includes(query)
       )
     }
 
@@ -160,6 +141,27 @@ export function KanbanBoard() {
     setActiveId(null)
   }
 
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event
+    if (!over) return
+
+    const activeId = active.id as string
+    const overId = over.id as string
+
+    const activeLead = leads.find((l) => l.id === activeId)
+    const overLead = leads.find((l) => l.id === overId)
+
+    if (!activeLead) return
+
+    const isOverColumn = PIPELINE_STAGES.some((stage) => stage.id === overId)
+
+    if (isOverColumn && activeLead.stage !== overId) {
+      moveLeadToStage(activeId, overId as PipelineStage)
+    } else if (overLead && activeLead.stage !== overLead.stage) {
+      moveLeadToStage(activeId, overLead.stage)
+    }
+  }
+
   const handleLeadClick = (lead: Lead) => {
     setSelectedLead(lead)
     setIsDetailsPanelOpen(true)
@@ -185,10 +187,6 @@ export function KanbanBoard() {
     }
     setLeads((prev) => [newLead, ...prev])
     setIsAddLeadOpen(false)
-  }
-
-  if (loading) {
-    return <div className="flex h-full items-center justify-center">Loading pipeline...</div>
   }
 
   return (
@@ -283,7 +281,7 @@ export function KanbanBoard() {
   )
 }
 
-// Keep your AddLeadForm as is
+// Keep your AddLeadForm component (unchanged)
 function AddLeadForm({
   onSubmit,
   onCancel,
