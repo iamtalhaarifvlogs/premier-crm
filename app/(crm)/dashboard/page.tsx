@@ -1,4 +1,4 @@
-// app/dashboard/page.tsx
+// app/(CRM)/dashboard/page.tsx
 import { DashboardContent } from "@/components/dashboard/dashboard-content"
 import { getLeads } from "@/lib/mock-data"
 
@@ -10,18 +10,13 @@ export default async function DashboardPage() {
   let error: string | null = null
 
   try {
-    console.log("=== DashboardPage: Starting fetch ===")
+    console.log("🔄 Fetching leads from proxy...")
     leads = await getLeads()
-    console.log(`=== DashboardPage: Got ${leads.length} leads ===`)
+    console.log(`✅ Loaded ${leads.length} leads successfully`)
   } catch (err: any) {
-    console.error("=== DashboardPage Error ===", err)
-    error = err.message || "Failed to fetch leads"
+    console.error("❌ Dashboard fetch error:", err)
+    error = "Failed to load leads. Check if proxy route is working."
   }
 
-  return (
-    <DashboardContent 
-      leads={leads} 
-      error={error} 
-    />
-  )
+  return <DashboardContent leads={leads} error={error} />
 }
