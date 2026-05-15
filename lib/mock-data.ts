@@ -93,7 +93,7 @@ export interface ScheduledJob {
 }
 
 /* =============================================
-   DIRECT FETCH FUNCTIONS
+   DIRECT AWS FETCH
    ============================================= */
 
 async function fetchTable(tableName: string): Promise<any[]> {
@@ -114,7 +114,7 @@ async function fetchTable(tableName: string): Promise<any[]> {
     const data = await response.json()
     return Array.isArray(data) ? data : data.Items || []
   } catch (error: any) {
-    console.error(`Failed to fetch ${tableName}:`, error.message)
+    console.error(`[fetchTable] Failed for ${tableName}:`, error.message)
     throw error
   }
 }
@@ -128,7 +128,7 @@ async function fetchTable(tableName: string): Promise<any[]> {
 export async function getLeads(): Promise<Lead[]> {
   const raw = await fetchTable("tbl_leads")
   return raw.map((lead: any, index: number) => ({
-    id: lead.id || lead.lead_id || lead.leadId || `lead-${index}`,
+    id: lead.id || lead.lead_id || `lead-${index}`,
     name: lead.name || "Unknown",
     phone: lead.phone || "",
     email: lead.email || "",
@@ -155,7 +155,7 @@ export async function getMessages(): Promise<Record<string, Message[]>> {
     if (!leadId) return
     if (!grouped[leadId]) grouped[leadId] = []
     grouped[leadId].push({
-      id: message.id || `msg-${Date.now()}`,
+      id: message.id || message.message_id || `msg-${Date.now()}`,
       leadId,
       sender: message.sender || "customer",
       content: message.content || "",
