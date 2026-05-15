@@ -9,8 +9,6 @@ export async function GET(
 ) {
   const tableName = params.table;
 
-  console.log(`[API Proxy] Request received for table: ${tableName}`);
-
   try {
     const response = await fetch(
       `\( {API_BASE}?TableName= \){tableName}`,
@@ -28,7 +26,7 @@ export async function GET(
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error("[API Proxy] Error:", error);
-    return NextResponse.json({ error: "Proxy failed" }, { status: 500 });
+    console.error("Proxy Error:", error);
+    return NextResponse.json({ error: "Proxy failed to fetch data" }, { status: 500 });
   }
 }
