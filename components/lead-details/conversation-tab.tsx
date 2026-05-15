@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Send, User, Bot, Settings, MessageCircle } from "lucide-react"
 
-import { mockMessages } from "@/lib/crm-context"
+import { getMessages } from "@/lib/mock-data"
 import { Lead } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -24,12 +24,30 @@ interface Message {
 }
 
 export function ConversationTab({ lead }: ConversationTabProps) {
-  const [messages, setMessages] = React.useState<Message[]>(
-    mockMessages[lead.id] || []
-  )
+  const [messages, setMessages] = React.useState<Message[]>([])
   const [inputValue, setInputValue] = React.useState("")
+  const [loading, setLoading] = React.useState(true)
   const scrollRef = React.useRef<HTMLDivElement>(null)
 
+  // Load real messages from mock-data.ts
+  React.useEffect(() => {
+    async function loadMessages() {
+      try {
+        const allMessages = await getMessages()
+        const leadMessages = allMessages[lead.id] || []
+        setMessages(leadMessages)
+      } catch (err) {
+        console.error("Failed to load messages:", err)
+        setMessages([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadMessages()
+  }, [lead.id])
+
+  // Auto scroll to bottom
   React.useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -71,9 +89,9 @@ export function ConversationTab({ lead }: ConversationTabProps) {
 
   const triggerMayaMessage = () => {
     const mayaMessages = [
-      "Hi! I noticed you were interested in our vehicles. Would you like me to help you find the perfect match for your needs?",
-      "I've found some great options that fit your budget. Would you like me to send you the details?",
-      "Just checking in! Is there anything else you'd like to know about the vehicles we discussed?",
+      "Hi! I noticed you were interested in our vehicles. Would you like me to help you find the perfect match?",
+      "I've found some great options within your budget. Shall I send details?",
+      "Just checking in! Do you have any questions about the vehicles?",
     ]
     const randomMessage = mayaMessages[Math.floor(Math.random() * mayaMessages.length)]
     addMessage("maya", randomMessage)
@@ -81,7 +99,7 @@ export function ConversationTab({ lead }: ConversationTabProps) {
 
   const triggerRepTakeover = () => {
     addMessage("system", "Conversation handed off to rep. Maya automation paused.")
-    addMessage("rep", `Hi ${lead.name.split(" ")[0]}, this is John from Premier Auto Plus. I'm taking over from Maya to help you personally. How can I assist you today?`)
+    addMessage("rep", `Hi ${lead.name.split(" ")[0]}, this is John from Premier Auto Plus. I'm taking over to assist you personally.`)
   }
 
   return (
@@ -89,9 +107,13 @@ export function ConversationTab({ lead }: ConversationTabProps) {
       {/* Messages Area */}
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="space-y-4">
-          {messages.length === 0 ? (
+          {loading ? (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-              No messages yet. Start a conversation or trigger Maya.
+              Loading conversation...
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+              No messages yet. Start a conversation or trigger an action below.
             </div>
           ) : (
             messages.map((message) => (
@@ -167,6 +189,7 @@ function MessageBubble({ message }: { message: Message }) {
           </AvatarFallback>
         </Avatar>
       )}
+
       <div
         className={cn(
           "max-w-[75%] rounded-lg px-3 py-2 text-sm",
@@ -190,6 +213,7 @@ function MessageBubble({ message }: { message: Message }) {
           })}
         </p>
       </div>
+
       {!isCustomer && (
         <Avatar className="size-8">
           <AvatarFallback
