@@ -93,32 +93,28 @@ export interface ScheduledJob {
 }
 
 /* =============================================
-   DIRECT AWS API CONFIG
+   DIRECT FETCH FUNCTIONS
    ============================================= */
-const AWS_API = "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data"
 
 async function fetchTable(tableName: string): Promise<any[]> {
   try {
-    const url = `\( {AWS_API}?TableName= \){tableName}`
-    console.log(`[fetchTable] Fetching: ${tableName}`)
-
-    const response = await fetch(url, {
-      method: "GET",
-      cache: "no-store",
-      next: { revalidate: 0 },
-    })
+    const response = await fetch(
+      `https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data?TableName=${tableName}`,
+      {
+        method: "GET",
+        cache: "no-store",
+        next: { revalidate: 0 },
+      }
+    )
 
     if (!response.ok) {
       throw new Error(`AWS Error ${response.status}`)
     }
 
     const data = await response.json()
-    const items = Array.isArray(data) ? data : data.Items || []
-
-    console.log(`[fetchTable] ${tableName} → ${items.length} items`)
-    return items
+    return Array.isArray(data) ? data : data.Items || []
   } catch (error: any) {
-    console.error(`[fetchTable] Failed for ${tableName}:`, error.message)
+    console.error(`Failed to fetch ${tableName}:`, error.message)
     throw error
   }
 }
@@ -154,16 +150,16 @@ export async function getMessages(): Promise<Record<string, Message[]>> {
   const messages = await fetchTable("tbl_messages")
   const grouped: Record<string, Message[]> = {}
 
-  messages.forEach((msg: any) => {
-    const leadId = msg.leadId || msg.lead_id || msg.leadId
+  messages.forEach((message: any) => {
+    const leadId = message.leadId || message.lead_id || message.leadId
     if (!leadId) return
     if (!grouped[leadId]) grouped[leadId] = []
     grouped[leadId].push({
-      id: msg.id || `msg-${Date.now()}`,
+      id: message.id || `msg-${Date.now()}`,
       leadId,
-      sender: msg.sender || "customer",
-      content: msg.content || "",
-      timestamp: msg.timestamp || new Date().toISOString(),
+      sender: message.sender || "customer",
+      content: message.content || "",
+      timestamp: message.timestamp || new Date().toISOString(),
     })
   })
   return grouped
@@ -178,7 +174,7 @@ export async function getStageHistory(): Promise<Record<string, StageHistoryItem
   const grouped: Record<string, StageHistoryItem[]> = {}
 
   items.forEach((item: any) => {
-    const leadId = item.leadId || item.lead_id
+    const leadId = item.leadId || item.lead_id || item.leadId
     if (!leadId) return
     if (!grouped[leadId]) grouped[leadId] = []
     grouped[leadId].push({
