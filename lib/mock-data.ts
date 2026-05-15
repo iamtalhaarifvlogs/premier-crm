@@ -92,17 +92,14 @@ export interface ScheduledJob {
   status: "pending" | "completed" | "cancelled"
 }
 
-/* =============================================
-   PROXY CONFIGURATION
-   ============================================= */
-const API_BASE = "/api/crm"
+const AWS_API = "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data"
 
-async function fetchTable<T>(tableName: string): Promise<any[]> {
+async function fetchTable(tableName: string): Promise<any[]> {
   try {
-    console.log(`[fetchTable] Fetching ${tableName}...`)
+    console.log(`[fetchTable] Fetching ${tableName} directly from AWS...`)
 
     const response = await fetch(
-      `\( {API_BASE}/ \){tableName}`,
+      `\( {AWS_API}?TableName= \){tableName}`,
       {
         method: "GET",
         cache: "no-store",
@@ -113,10 +110,12 @@ async function fetchTable<T>(tableName: string): Promise<any[]> {
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`HTTP ${response.status}: ${errorText}`)
+      console.error(`[fetchTable] AWS Error ${response.status}:`, errorText)
+      throw new Error(`Failed to fetch ${tableName}: ${response.status}`)
     }
 
     const data = await response.json()
+    console.log(`[fetchTable] ${tableName} → ${data.Items?.length || data.length || 0} items`)
 
     return Array.isArray(data) ? data : data.Items || []
   } catch (error: any) {
@@ -127,14 +126,16 @@ async function fetchTable<T>(tableName: string): Promise<any[]> {
 
 /*
 |--------------------------------------------------------------------------
-| MAIN FUNCTIONS
+| MAIN DATA FUNCTIONS
 |--------------------------------------------------------------------------
 */
 
 export async function getLeads(): Promise<Lead[]> {
-  const raw = await fetchTable("tbl_leads")
-  return raw.map((lead: any, i: number) => ({
-    id: lead.id || lead.lead_id || lead.leadId || `lead-${i}`,
+  const rawLeads = await fetchTable("tbl_leads")
+  console.log(`[getLeads] Raw items received: ${rawLeads.length}`)
+
+  return rawLeads.map((lead: any, index: number) => ({
+    id: lead.id || lead.lead_id || lead.leadId || `lead-${index}`,
     name: lead.name || "Unknown",
     phone: lead.phone || "",
     email: lead.email || "",
@@ -143,18 +144,31 @@ export async function getLeads(): Promise<Lead[]> {
     stage: (lead.stage || "new_lead") as PipelineStage,
     statuses: Array.isArray(lead.statuses) ? lead.statuses : [],
     assignedRep: lead.assignedRep || null,
-    lastActivity: lead.lastActivity || "N/A",
-    downPayment: Number(lead.downPayment || 0),
+    lastActivity: lead.lastActivity || lead.last_activity || "N/A",
+    downPayment: Number(lead.downPayment || lead.down_payment || 0),
     location: lead.location || "Unknown",
-    creditStatus: lead.creditStatus || "good",
+    creditStatus: lead.creditStatus || lead.credit_status || "good",
     timeline: lead.timeline || "Unknown",
     createdAt: lead.createdAt || lead.created_at || new Date().toISOString(),
   }))
 }
 
-export async function getMessages() { 
-  const data = await fetchTable("tbl_messages")
-  return data
+export async function getMessages(): Promise<Record<string, Message[]>> {
+  const messages = await fetchTable("tbl_messages")
+  const grouped: Record<string, Message[]> = {}
+  messages.forEach((message: any) => {
+    const leadId = message.leadId || message.lead_id || message.leadId
+    if (!leadId) return
+    if (!grouped[leadId]) grouped[leadId] = []
+    grouped[leadId].push({
+      id: message.id || `msg-${Date.now()}`,
+      leadId,
+      sender: message.sender || "customer",
+      content: message.content || "",
+      timestamp: message.timestamp || new Date().toISOString(),
+    })
+  })
+  return grouped
 }
 
 export async function getWorkflowLogs() { return fetchTable("tbl_workflow_logs") }
@@ -168,30 +182,30 @@ export function formatCurrency(amount: number): string {
 }
 
 export function getLeadsByStage(leads: Lead[], stage: PipelineStage): Lead[] {
-  return leads.filter(l => l.stage === stage)
+  return leads.filter((lead) => lead.stage === stage)
 }
 
 export function getStatusColor(status: LeadStatus): string {
-  const colors: Record<LeadStatus, string> = {
-    hot: "bg-orange-100 text-orange-700 border-orange-200",
-    automation_paused: "bg-yellow-100 text-yellow-700 border-yellow-200",
-    customer_replied: "bg-green-100 text-green-700 border-green-200",
-    deposit_paid: "bg-blue-100 text-blue-700 border-blue-200",
+  switch (status) {
+    case "hot": return "bg-orange-100 text-orange-700 border-orange-200"
+    case "automation_paused": return "bg-yellow-100 text-yellow-700 border-yellow-200"
+    case "customer_replied": return "bg-green-100 text-green-700 border-green-200"
+    case "deposit_paid": return "bg-blue-100 text-blue-700 border-blue-200"
+    default: return "bg-muted text-muted-foreground"
   }
-  return colors[status] || "bg-muted text-muted-foreground"
 }
 
 export function getStatusLabel(status: LeadStatus): string {
-  const labels: Record<LeadStatus, string> = {
-    hot: "Hot Lead",
-    automation_paused: "Automation Paused",
-    customer_replied: "Customer Replied",
-    deposit_paid: "Deposit Paid",
+  switch (status) {
+    case "hot": return "Hot Lead"
+    case "automation_paused": return "Automation Paused"
+    case "customer_replied": return "Customer Replied"
+    case "deposit_paid": return "Deposit Paid"
+    default: return status
   }
-  return labels[status] || status
 }
 
-// Mocks
+// Empty mocks
 export const mockLeads: Lead[] = []
 export const mockMessages: Record<string, Message[]> = {}
 export const mockWorkflowLogs: WorkflowLog[] = []
