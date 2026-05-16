@@ -21,17 +21,38 @@ export default function Chatbot() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
   const fetchLeads = async () => {
     try {
       const res = await fetch('/api/leads', { cache: 'no-store' });
       const data = await res.json();
-      const loaded = Array.isArray(data) ? data : [];
+      
+      // Extract Items array from DynamoDB response
+      const rawItems = data.Items || data || [];
+      const loaded = rawItems.map((item: any) => ({
+        id: item.lead_id || item.id || `lead-${Date.now()}`,
+        name: item.name || 'Unknown',
+        phone: item.phone || '',
+        email: item.email || '',
+        budget: Number(item.budget) || 0,
+        preferredVehicle: item.preferredVehicle || 'Not specified',
+        stage: item.stage || 'new_lead',
+        statuses: Array.isArray(item.statuses) ? item.statuses : [],
+        assignedRep: item.assignedRep || null,
+        lastActivity: item.lastActivity || 'N/A',
+        downPayment: Number(item.downPayment) || 0,
+        location: item.location || '',
+        creditStatus: item.creditStatus || 'good',
+        timeline: item.timeline || '',
+        createdAt: item.createdAt || '',
+      }));
+
       setLeads(loaded);
       return loaded;
-    } catch {
+    } catch (err) {
+      console.error("Maya fetch error:", err);
       return [];
     }
   };
@@ -43,66 +64,77 @@ export default function Chatbot() {
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       setMessages([{
-        id: '1',
-        text: "Hi! I'm Maya.\n\nTry:\n• Show all leads\n• Tell me about Talha",
+        id: 'welcome',
+        text: "Hi! I'm Maya.\n\nTry:\n• Show all leads\n• Tell me about Talha\n• Show Sarah",
         isBot: true,
         timestamp: new Date()
       }]);
     }
   }, [isOpen]);
 
-  const addMessage = (text: string, isBot: boolean) => {
+  const addBotMessage = (text: string) => {
     setMessages(prev => [...prev, {
       id: Date.now().toString(),
       text,
-      isBot,
+      isBot: true,
       timestamp: new Date()
     }]);
-    setTimeout(scrollToBottom, 100);
+    scrollToBottom();
   };
 
   const handleSend = async () => {
     if (!inputValue.trim()) return;
+
     const userText = inputValue.trim();
-    addMessage(userText, false);
+    setMessages(prev => [...prev, { id: Date.now().toString(), text: userText, isBot: false, timestamp: new Date() }]);
     setInputValue('');
     setIsTyping(true);
 
     setTimeout(async () => {
-      const freshLeads = await fetchLeads();
+      await processUserMessage(userText);
+      setIsTyping(false);
+    }, 700);
+  };
 
-      const lower = userText.toLowerCase();
+  const processUserMessage = async (text: string) => {
+    const lower = text.toLowerCase();
+    const freshLeads = await fetchLeads();
 
-      if (lower.includes("all leads") || lower.includes("show leads")) {
-        if (freshLeads.length === 0) {
-          addMessage("No leads found.", true);
-        } else {
-          const list = freshLeads.map(l => 
-            `• \( {l.name || 'Unknown'} ( \){l.stage}) — ${l.preferredVehicle || 'N/A'} — \[ {l.budget || 0}`
-          ).join('\n');
-          addMessage(`Here are all current leads:\n\n${list}`, true);
-        }
-      } else {
-        // Specific lead
-        const lead = freshLeads.find(l => 
-          l.name?.toLowerCase().includes(userText.toLowerCase())
-        );
-        if (lead) {
-          addMessage(`
+    if (lower.includes("all leads") || lower.includes("show leads") || lower.includes("list")) {
+      if (freshLeads.length === 0) {
+        addBotMessage("No leads found.");
+        return;
+      }
+
+      const list = freshLeads
+        .map(l => `• \( {l.name} ( \){l.stage}) — ${l.preferredVehicle} — \[ {l.budget}`)
+        .join('\n');
+
+      addBotMessage(`Here are all current leads:\n\n${list}`);
+      return;
+    }
+
+    // Specific lead
+    const lead = freshLeads.find(l => 
+      l.name.toLowerCase().includes(lower)
+    );
+
+    if (lead) {
+      const details = `
 **${lead.name}**
 
-Stage: ${lead.stage}
-Vehicle: ${lead.preferredVehicle || 'Not specified'}
-Budget: \]{lead.budget}
-Phone: ${lead.phone || '—'}
-Email: ${lead.email || '—'}
-          `.trim(), true);
-        } else {
-          addMessage("Lead not found. Try 'Show all leads'", true);
-        }
-      }
-      setIsTyping(false);
-    }, 600);
+**Stage:** ${lead.stage}
+**Preferred Vehicle:** ${lead.preferredVehicle}
+**Budget:** \]{lead.budget}
+**Phone:** ${lead.phone}
+**Email:** ${lead.email}
+**Deposit:** ${lead.statuses.includes('deposit_paid') ? '✅ Paid' : 'Not yet'}
+      `.trim();
+      addBotMessage(details);
+      return;
+    }
+
+    addBotMessage("Lead not found.\n\nTry 'Show all leads' or mention a name.");
   };
 
   return (
@@ -115,13 +147,13 @@ Email: ${lead.email || '—'}
       </button>
 
       {isOpen && (
-        <div className="fixed bottom-20 right-4 md:right-6 w-[92%] md:w-[380px] h-[520px] bg-white rounded-3xl shadow-2xl flex flex-col z-50 overflow-hidden">
-          <div className="bg-blue-600 text-white p-4 flex justify-between items-center">
+        <div className="fixed bottom-20 right-4 md:right-6 w-[92%] md:w-[380px] h-[520px] bg-white shadow-2xl rounded-3xl flex flex-col z-50 overflow-hidden">
+          <div className="bg-blue-600 text-white p-4 flex justify-between">
             <div>Maya • Live</div>
             <button onClick={() => setIsOpen(false)}><X size={24} /></button>
           </div>
 
-          <div className="flex-1 p-4 overflow-y-auto bg-gray-50 space-y-3">
+          <div className="flex-1 p-4 overflow-y-auto bg-gray-50 space-y-4">
             {messages.map(m => (
               <div key={m.id} className={`flex ${m.isBot ? 'justify-start' : 'justify-end'}`}>
                 <div className={`max-w-[85%] px-4 py-3 rounded-2xl whitespace-pre-wrap ${m.isBot ? 'bg-white border' : 'bg-blue-600 text-white'}`}>
@@ -129,7 +161,7 @@ Email: ${lead.email || '—'}
                 </div>
               </div>
             ))}
-            {isTyping && <div className="text-gray-400 pl-4">Maya is typing...</div>}
+            {isTyping && <div className="pl-4 text-gray-400">Maya is typing...</div>}
             <div ref={messagesEndRef} />
           </div>
 
