@@ -1,17 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { X, Phone, Mail, MapPin, Calendar, DollarSign, CreditCard, Clock, User, Flame, Pause, CheckCircle } from "lucide-react"
+import { X, Phone, Mail, MapPin, Calendar, DollarSign, CreditCard, Clock, User, Flame, Pause, CheckCircle, Save, Edit2 } from "lucide-react"
 
 import { useCRM } from "@/lib/crm-context"
-import { 
-  Lead, 
-  PIPELINE_STAGES, 
-  formatCurrency, 
-  getStatusColor, 
-  getStatusLabel,
-  getStageHistory 
-} from "@/lib/mock-data"
+import { Lead, PIPELINE_STAGES, formatCurrency, getStatusColor, getStatusLabel } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -21,7 +14,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 import { ConversationTab } from "./conversation-tab"
 import { WorkflowLogsTab } from "./workflow-logs-tab"
@@ -30,272 +24,214 @@ import { SourcingTab } from "./sourcing-tab"
 export function LeadDetailsPanel() {
   const { selectedLead, setSelectedLead, isDetailsPanelOpen, setIsDetailsPanelOpen, leads, setLeads } = useCRM()
 
-  const [stageHistory, setStageHistory] = React.useState<any[]>([])
-  const [loadingHistory, setLoadingHistory] = React.useState(false)
+  const [isEditing, setIsEditing] = React.useState(false)
+  const [editedLead, setEditedLead] = React.useState<Lead | null>(null)
 
-  const handleClose = () => {
-    setIsDetailsPanelOpen(false)
-    setTimeout(() => setSelectedLead(null), 300)
-  }
-
-  // Load real stage history
   React.useEffect(() => {
-    async function loadStageHistory() {
-      if (!selectedLead) return
-      setLoadingHistory(true)
-      try {
-        const history = await getStageHistory()
-        setStageHistory(history[selectedLead.id] || [
-          { stage: selectedLead.stage, timestamp: selectedLead.createdAt, note: "Lead created" }
-        ])
-      } catch (err) {
-        console.error("Failed to load stage history:", err)
-        setStageHistory([
-          { stage: selectedLead.stage, timestamp: selectedLead.createdAt, note: "Lead created" }
-        ])
-      } finally {
-        setLoadingHistory(false)
-      }
-    }
-
     if (selectedLead) {
-      loadStageHistory()
+      setEditedLead({ ...selectedLead })
+      setIsEditing(false)
     }
   }, [selectedLead])
 
-  const toggleStatus = (status: "hot" | "automation_paused" | "deposit_paid") => {
-    if (!selectedLead) return
+  if (!selectedLead || !editedLead) return null
 
-    setLeads((prev) =>
-      prev.map((lead) =>
-        lead.id === selectedLead.id
-          ? {
-              ...lead,
-              statuses: lead.statuses.includes(status)
-                ? lead.statuses.filter((s) => s !== status)
-                : [...lead.statuses, status],
-            }
-          : lead
-      )
-    )
+  const handleSave = async () => {
+    if (!editedLead) return
 
-    setSelectedLead({
-      ...selectedLead,
-      statuses: selectedLead.statuses.includes(status)
-        ? selectedLead.statuses.filter((s) => s !== status)
-        : [...selectedLead.statuses, status],
-    })
+    // Update local state
+    setLeads(prev => prev.map(l => l.id === editedLead.id ? editedLead : l))
+
+    // TODO: Add API update call here later
+    console.log("Lead updated:", editedLead)
+
+    setSelectedLead(editedLead)
+    setIsEditing(false)
+
+    // Simple notification
+    alert("✅ Lead updated successfully!")
   }
 
-  if (!selectedLead) return null
+  const toggleStatus = (status: "hot" | "automation_paused" | "deposit_paid") => {
+    const currentStatuses = editedLead.statuses
+    const newStatuses = currentStatuses.includes(status)
+      ? currentStatuses.filter(s => s !== status)
+      : [...currentStatuses, status]
+
+    setEditedLead({ ...editedLead, statuses: newStatuses })
+  }
+
+  const updateField = (field: keyof Lead, value: any) => {
+    setEditedLead({ ...editedLead, [field]: value })
+  }
+
+  const handleClose = () => {
+    setIsDetailsPanelOpen(false)
+    setTimeout(() => {
+      setSelectedLead(null)
+      setIsEditing(false)
+    }, 300)
+  }
 
   return (
-    <Sheet open={isDetailsPanelOpen} onOpenChange={setIsDetailsPanelOpen}>
-      <SheetContent className="w-full sm:max-w-xl p-0 flex flex-col">
-        <SheetHeader className="p-6 pb-0">
-          <div className="flex items-start justify-between">
-            <div>
-              <SheetTitle className="text-xl">{selectedLead.name}</SheetTitle>
-              <p className="text-sm text-muted-foreground mt-1">
-                {PIPELINE_STAGES.find((s) => s.id === selectedLead.stage)?.name}
-              </p>
-            </div>
+    <div className={`fixed inset-y-0 right-0 w-96 bg-background border-l shadow-xl transform transition-transform duration-300 ${isDetailsPanelOpen ? 'translate-x-0' : 'translate-x-full'} z-50`}>
+      <div className="flex h-full flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b p-4">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-semibold">{editedLead.name}</h2>
+            <Badge variant="outline">{getStatusLabel(editedLead.statuses[0] || "new")}</Badge>
           </div>
-        </SheetHeader>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setIsEditing(!isEditing)}>
+              {isEditing ? <Save className="size-4" /> : <Edit2 className="size-4" />}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleClose}>
+              <X className="size-4" />
+            </Button>
+          </div>
+        </div>
 
-        <Tabs defaultValue="overview" className="flex-1 flex flex-col min-h-0">
-          <div className="px-6">
-            <TabsList className="w-full grid grid-cols-4">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="conversation">Conversation</TabsTrigger>
-              <TabsTrigger value="workflow">Workflow Logs</TabsTrigger>
-              <TabsTrigger value="sourcing">Sourcing</TabsTrigger>
-            </TabsList>
-          </div>
+        <Tabs defaultValue="overview" className="flex-1 flex flex-col">
+          <TabsList className="grid w-full grid-cols-4 mx-4 mt-4">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="conversation">Chat</TabsTrigger>
+            <TabsTrigger value="workflow">Logs</TabsTrigger>
+            <TabsTrigger value="sourcing">Sourcing</TabsTrigger>
+          </TabsList>
 
           <ScrollArea className="flex-1">
-            <TabsContent value="overview" className="p-6 pt-4 m-0">
-              <div className="space-y-4">
-                {/* Lead Summary Card */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Lead Summary</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-3 text-sm">
-                    <div className="flex items-center gap-2">
-                      <User className="size-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">Name:</span>
-                      <span className="font-medium">{selectedLead.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="size-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">Phone:</span>
-                      <span className="font-medium">{selectedLead.phone}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Mail className="size-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">Email:</span>
-                      <span className="font-medium">{selectedLead.email}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="size-4" />
-                      <span className="text-muted-foreground">Stage:</span>
-                      <Badge variant="secondary">
-                        {PIPELINE_STAGES.find((s) => s.id === selectedLead.stage)?.name}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="size-4" />
-                      <span className="text-muted-foreground">Assigned Rep:</span>
-                      <span className="font-medium">{selectedLead.assignedRep || "Unassigned"}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Qualification Info Card */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Qualification Info</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-3 text-sm">
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="size-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">Budget:</span>
-                      <span className="font-medium">{formatCurrency(selectedLead.budget)}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="size-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">Down Payment:</span>
-                      <span className="font-medium">{formatCurrency(selectedLead.downPayment)}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="size-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">Location:</span>
-                      <span className="font-medium">{selectedLead.location}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="size-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">Credit Status:</span>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          selectedLead.creditStatus === "excellent" && "border-green-500 text-green-600",
-                          selectedLead.creditStatus === "good" && "border-blue-500 text-blue-600",
-                          selectedLead.creditStatus === "fair" && "border-yellow-500 text-yellow-600",
-                          selectedLead.creditStatus === "poor" && "border-red-500 text-red-600"
-                        )}
-                      >
-                        {selectedLead.creditStatus.charAt(0).toUpperCase() + selectedLead.creditStatus.slice(1)}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="size-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">Timeline:</span>
-                      <span className="font-medium">{selectedLead.timeline}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Stage History */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Stage History</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {loadingHistory ? (
-                      <p className="text-sm text-muted-foreground">Loading history...</p>
-                    ) : (
-                      <div className="relative pl-4">
-                        <div className="absolute left-0 top-2 bottom-2 w-px bg-border" />
-                        <div className="space-y-4">
-                          {stageHistory.map((item, index) => (
-                            <div key={index} className="relative pl-4">
-                              <div className="absolute -left-4 top-1.5 size-2 rounded-full bg-primary" />
-                              <div>
-                                <p className="text-sm font-medium">
-                                  {PIPELINE_STAGES.find((s) => s.id === item.stage)?.name}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {new Date(item.timestamp).toLocaleString()}
-                                </p>
-                                {item.note && (
-                                  <p className="text-xs text-muted-foreground mt-1">{item.note}</p>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Status Toggles */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Status Controls</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Pause className="size-4 text-yellow-600" />
-                        <Label htmlFor="pause-automation" className="text-sm">
-                          Pause Automation
-                        </Label>
-                      </div>
-                      <Switch
-                        id="pause-automation"
-                        checked={selectedLead.statuses.includes("automation_paused")}
-                        onCheckedChange={() => toggleStatus("automation_paused")}
+            <TabsContent value="overview" className="p-6 m-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    Lead Information
+                    {isEditing && <span className="text-sm text-muted-foreground">Editing Mode</span>}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Editable Fields */}
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Name</Label>
+                      <Input 
+                        value={editedLead.name} 
+                        onChange={(e) => updateField("name", e.target.value)}
+                        disabled={!isEditing}
                       />
                     </div>
-                    <Separator />
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Phone</Label>
+                        <Input 
+                          value={editedLead.phone} 
+                          onChange={(e) => updateField("phone", e.target.value)}
+                          disabled={!isEditing}
+                        />
+                      </div>
+                      <div>
+                        <Label>Email</Label>
+                        <Input 
+                          value={editedLead.email} 
+                          onChange={(e) => updateField("email", e.target.value)}
+                          disabled={!isEditing}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Budget</Label>
+                        <Input 
+                          type="number"
+                          value={editedLead.budget} 
+                          onChange={(e) => updateField("budget", parseInt(e.target.value) || 0)}
+                          disabled={!isEditing}
+                        />
+                      </div>
+                      <div>
+                        <Label>Stage</Label>
+                        <Select 
+                          value={editedLead.stage} 
+                          onValueChange={(value) => updateField("stage", value as PipelineStage)}
+                          disabled={!isEditing}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PIPELINE_STAGES.map(stage => (
+                              <SelectItem key={stage.id} value={stage.id}>
+                                {stage.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label>Preferred Vehicle</Label>
+                      <Input 
+                        value={editedLead.preferredVehicle} 
+                        onChange={(e) => updateField("preferredVehicle", e.target.value)}
+                        disabled={!isEditing}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Status Toggles */}
+                  <div className="space-y-4 pt-4 border-t">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Flame className="size-4 text-orange-500" />
-                        <Label htmlFor="mark-hot" className="text-sm">
-                          Mark Hot Lead
-                        </Label>
+                        <Label>Hot Lead</Label>
                       </div>
-                      <Switch
-                        id="mark-hot"
-                        checked={selectedLead.statuses.includes("hot")}
+                      <Switch 
+                        checked={editedLead.statuses.includes("hot")} 
                         onCheckedChange={() => toggleStatus("hot")}
+                        disabled={!isEditing}
                       />
                     </div>
-                    <Separator />
+
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <CheckCircle className="size-4 text-green-500" />
-                        <Label htmlFor="deposit-paid" className="text-sm">
-                          Mark Deposit Paid
-                        </Label>
+                        <Label>Deposit Paid</Label>
                       </div>
-                      <Switch
-                        id="deposit-paid"
-                        checked={selectedLead.statuses.includes("deposit_paid")}
+                      <Switch 
+                        checked={editedLead.statuses.includes("deposit_paid")} 
                         onCheckedChange={() => toggleStatus("deposit_paid")}
+                        disabled={!isEditing}
                       />
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
+                  </div>
+
+                  {isEditing && (
+                    <Button onClick={handleSave} className="w-full">
+                      <Save className="mr-2 size-4" />
+                      Save Changes
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="conversation" className="m-0">
-              <ConversationTab lead={selectedLead} />
+              <ConversationTab lead={editedLead} />
             </TabsContent>
 
-            <TabsContent value="workflow" className="p-6 pt-4 m-0">
-              <WorkflowLogsTab leadId={selectedLead.id} />
+            <TabsContent value="workflow" className="p-6 m-0">
+              <WorkflowLogsTab leadId={editedLead.id} />
             </TabsContent>
 
-            <TabsContent value="sourcing" className="p-6 pt-4 m-0">
-              <SourcingTab lead={selectedLead} />
+            <TabsContent value="sourcing" className="p-6 m-0">
+              <SourcingTab lead={editedLead} />
             </TabsContent>
           </ScrollArea>
         </Tabs>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </div>
   )
 }
