@@ -35,7 +35,6 @@ export function LeadDetailsPanel() {
     }
   }, [selectedLead])
 
-  // Auto hide notification
   React.useEffect(() => {
     if (notification) {
       const timer = setTimeout(() => setNotification(null), 4000)
@@ -48,55 +47,51 @@ export function LeadDetailsPanel() {
   const handleSave = async () => {
     if (!editedLead) return
 
-    // Update local state
+    // Update UI immediately
     setLeads(prev => prev.map(l => l.id === editedLead.id ? editedLead : l))
 
     try {
-      console.log("Sending UPDATE to API...")
+      const payload = {
+        TableName: "tbl_leads",
+        Item: {
+          lead_id: editedLead.id,
+          name: editedLead.name,
+          phone: editedLead.phone,
+          email: editedLead.email,
+          budget: editedLead.budget,
+          preferredVehicle: editedLead.preferredVehicle,
+          stage: editedLead.stage,
+          statuses: editedLead.statuses,
+          assignedRep: editedLead.assignedRep,
+          lastActivity: "Just now",
+          downPayment: editedLead.downPayment || 0,
+          location: editedLead.location,
+          creditStatus: editedLead.creditStatus,
+          timeline: editedLead.timeline,
+          createdAt: editedLead.createdAt,
+        }
+      }
+
+      console.log("Sending Update Payload:", JSON.stringify(payload, null, 2))
 
       const response = await fetch('/api/leads', {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          TableName: "tbl_leads",
-          Item: {
-            lead_id: editedLead.id,
-            name: editedLead.name,
-            phone: editedLead.phone,
-            email: editedLead.email,
-            budget: editedLead.budget,
-            preferredVehicle: editedLead.preferredVehicle,
-            stage: editedLead.stage,
-            statuses: editedLead.statuses,
-            assignedRep: editedLead.assignedRep,
-            lastActivity: "Just now",
-            downPayment: editedLead.downPayment,
-            location: editedLead.location,
-            creditStatus: editedLead.creditStatus,
-            timeline: editedLead.timeline,
-            createdAt: editedLead.createdAt,
-          }
-        }),
+        body: JSON.stringify(payload),
       })
 
-      const result = await response.text()
-      console.log("Update Response Status:", response.status)
-      console.log("Update Response Body:", result)
+      const resultText = await response.text()
+      console.log("Response Status:", response.status)
+      console.log("Response Body:", resultText)
 
       if (response.ok) {
         setNotification({ message: "✅ Lead updated successfully in database!", type: 'success' })
       } else {
-        setNotification({ 
-          message: `❌ Update failed (Status ${response.status})`, 
-          type: 'error' 
-        })
+        setNotification({ message: `❌ Update failed (${response.status})`, type: 'error' })
       }
     } catch (err: any) {
       console.error("Update Error:", err)
-      setNotification({ 
-        message: "❌ Failed to update in database. Saved locally only.", 
-        type: 'error' 
-      })
+      setNotification({ message: "❌ Failed to reach database. Saved locally only.", type: 'error' })
     }
 
     setSelectedLead(editedLead)
@@ -155,14 +150,13 @@ export function LeadDetailsPanel() {
             <TabsContent value="overview" className="p-6 m-0 space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
+                  <CardTitle className="flex justify-between items-center">
                     Lead Details
-                    {isEditing && <span className="text-blue-600 text-sm font-medium">Editing Mode</span>}
+                    {isEditing && <span className="text-blue-600 text-sm font-medium">● Editing</span>}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {/* Editable Fields */}
-                  <div className="space-y-4">
+                  <div className="space-y-5">
                     <div>
                       <Label>Name</Label>
                       <Input value={editedLead.name} onChange={(e) => updateField("name", e.target.value)} disabled={!isEditing} />
@@ -207,7 +201,6 @@ export function LeadDetailsPanel() {
 
                   <Separator />
 
-                  {/* Status Toggles */}
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2">
@@ -253,7 +246,7 @@ export function LeadDetailsPanel() {
 
       {/* Notification */}
       {notification && (
-        <div className={`fixed bottom-6 right-6 z-[60] px-6 py-3 rounded-xl shadow-lg text-sm font-medium ${
+        <div className={`fixed bottom-6 right-6 z-[60] px-6 py-3.5 rounded-xl shadow-xl text-sm font-medium ${
           notification.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
         }`}>
           {notification.message}
