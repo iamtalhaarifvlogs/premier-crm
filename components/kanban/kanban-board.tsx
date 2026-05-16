@@ -137,7 +137,7 @@ export function KanbanBoard() {
     setIsDetailsPanelOpen(true)
   }
 
-  // ====================== ADD LEAD WITH FULL DEBUG ======================
+  // ====================== ADD LEAD WITH FULL LOGGING ======================
   const handleAddLead = async (data: { 
     name: string; 
     phone: string; 
@@ -165,6 +165,10 @@ export function KanbanBoard() {
       createdAt: new Date().toISOString(),
     }
 
+    // Add to UI immediately
+    setLeads((prev) => [newLead, ...prev])
+    setIsAddLeadOpen(false)
+
     // Try to save to AWS
     try {
       console.log("Sending POST to AWS...")
@@ -190,8 +194,6 @@ export function KanbanBoard() {
         }
       }
 
-      console.log("Payload:", JSON.stringify(payload, null, 2))
-
       const response = await fetch(
         "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data",
         {
@@ -202,22 +204,19 @@ export function KanbanBoard() {
       )
 
       const responseText = await response.text()
-      console.log("AWS Status:", response.status)
-      console.log("AWS Response:", responseText)
+
+      console.log("POST Status:", response.status)
+      console.log("POST Response:", responseText)
 
       if (response.ok) {
-        alert("✅ Lead successfully saved to database!")
+        alert("✅ Lead successfully saved to the database!")
       } else {
-        alert(`❌ Failed to save to database.\nStatus: \( {response.status}\n\n \){responseText}`)
+        alert(`❌ Failed to save to database (Status ${response.status})\n\nResponse: ${responseText}`)
       }
     } catch (err: any) {
-      console.error("POST Failed:", err)
-      alert(`❌ Network error while saving lead.\n${err.message}`)
+      console.error("POST Request Failed:", err)
+      alert("❌ Could not save to database (CORS or network error). Lead was added locally.")
     }
-
-    // Always add to UI
-    setLeads((prev) => [newLead, ...prev])
-    setIsAddLeadOpen(false)
   }
 
   return (
@@ -272,7 +271,7 @@ export function KanbanBoard() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Lead</DialogTitle>
-              <DialogDescription>Will be saved to the database.</DialogDescription>
+              <DialogDescription>Will attempt to save to database.</DialogDescription>
             </DialogHeader>
             <AddLeadForm onSubmit={handleAddLead} onCancel={() => setIsAddLeadOpen(false)} />
           </DialogContent>
@@ -311,7 +310,7 @@ export function KanbanBoard() {
   )
 }
 
-// AddLeadForm remains the same
+// AddLeadForm
 function AddLeadForm({
   onSubmit,
   onCancel,
