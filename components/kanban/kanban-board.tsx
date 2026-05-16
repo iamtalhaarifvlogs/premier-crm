@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { Toaster, toast } from "sonner"
 import {
   DndContext,
   DragOverlay,
@@ -137,7 +138,7 @@ export function KanbanBoard() {
     setIsDetailsPanelOpen(true)
   }
 
-  // ====================== ADD LEAD WITH PROXY ======================
+  // ====================== ADD LEAD WITH NICE TOASTS ======================
   const handleAddLead = async (data: { 
     name: string; 
     phone: string; 
@@ -169,7 +170,12 @@ export function KanbanBoard() {
     setLeads((prev) => [newLead, ...prev])
     setIsAddLeadOpen(false)
 
-    // Save via proxy (server-side, bypasses CORS)
+    toast.success("Lead added successfully!", {
+      description: `${data.name} has been added to New Lead stage.`,
+      duration: 3000,
+    })
+
+    // Try to save to database
     try {
       const response = await fetch('/api/leads', {
         method: "POST",
@@ -197,12 +203,15 @@ export function KanbanBoard() {
       })
 
       if (response.ok) {
-        console.log("✅ Lead saved to database")
-      } else {
-        console.warn("Save failed:", await response.text())
+        toast.success("Saved to database", {
+          description: "Lead is now persisted.",
+        })
       }
     } catch (err) {
-      console.error("Proxy error:", err)
+      console.error("Save to DB failed:", err)
+      toast.error("Saved locally only", {
+        description: "Could not save to database (CORS issue).",
+      })
     }
   }
 
@@ -293,11 +302,13 @@ export function KanbanBoard() {
         </div>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
+
+      <Toaster position="top-center" richColors closeButton />
     </div>
   )
 }
 
-// AddLeadForm
+// AddLeadForm (unchanged)
 function AddLeadForm({
   onSubmit,
   onCancel,
