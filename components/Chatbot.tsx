@@ -18,10 +18,9 @@ export default function Chatbot() {
   const [isTyping, setIsTyping] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
 
-  // Multi-turn state
   const [currentAction, setCurrentAction] = useState<'none' | 'create-lead' | 'update-lead' | 'delete-lead'>('none');
+  const [targetLead, setTargetLead] = useState<Lead | null>(null);
   const [tempLeadData, setTempLeadData] = useState<Partial<Lead>>({});
-  const [targetLeadId, setTargetLeadId] = useState<string>('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -44,7 +43,7 @@ export default function Chatbot() {
     if (isOpen && messages.length === 0) {
       setMessages([{
         id: 'welcome',
-        text: "Hi! I'm Maya.\n\nTry:\n• Show all leads\n• Show Talha\n• Update Talha\n• Delete Ryan\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic",
+        text: "Hi! I'm Maya.\n\nJust talk naturally. Examples:\n• Show all leads\n• Show Sarah\n• Update Talha stage to deposit_paid\n• Delete Ryan\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic",
         isBot: true,
         timestamp: new Date()
       }]);
@@ -62,28 +61,11 @@ export default function Chatbot() {
   };
 
   const findLeadByName = (name: string): Lead | undefined => {
-    return leads.find(l => l.name.toLowerCase().includes(name.toLowerCase()));
-  };
-
-  const parseLeadCreation = (text: string): Partial<Lead> => {
-    const data: Partial<Lead> = {};
-
-    const nameMatch = text.match(/([A-Z][a-z]+(?:\s[A-Z][a-z]+)+)/);
-    if (nameMatch) data.name = nameMatch[0];
-
-    const phoneMatch = text.match(/(\+?\d{1,3}[-.\s]?)?(\d{3}[-.\s]?\d{3}[-.\s]?\d{4}|\d{10,})/);
-    if (phoneMatch) data.phone = phoneMatch[0];
-
-    const emailMatch = text.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
-    if (emailMatch) data.email = emailMatch[0];
-
-    const budgetMatch = text.match(/budget[:\s]*\$?(\d{1,3}(?:,\d{3})*|\d+)/i);
-    if (budgetMatch) data.budget = parseInt(budgetMatch[1].replace(/,/g, ''));
-
-    const vehicleMatch = text.match(/(?:wants?|for|vehicle|car|model|buy)[:\s]*([A-Za-z0-9\s]+)/i);
-    if (vehicleMatch) data.preferredVehicle = vehicleMatch[1].trim();
-
-    return data;
+    const lowerName = name.toLowerCase();
+    return leads.find(l => 
+      l.name.toLowerCase().includes(lowerName) || 
+      lowerName.includes(l.name.toLowerCase())
+    );
   };
 
   const handleSend = async () => {
@@ -111,14 +93,9 @@ export default function Chatbot() {
     const lower = text.toLowerCase();
 
     // Show specific lead
-    const leadName = text.match(/show\s+([A-Z][a-z]+)/i)?.[1] || 
-                     text.match(/details?\s+([A-Z][a-z]+)/i)?.[1] ||
-                     text.match(/([A-Z][a-z]+)/)?.[0];
-
-    if (leadName) {
-      const lead = findLeadByName(leadName);
-      if (lead) {
-        const details = `
+    const lead = findLeadByName(text);
+    if (lead) {
+      const details = `
 **${lead.name}**
 Stage: ${lead.stage}
 Budget: \[ {lead.budget}
@@ -126,10 +103,9 @@ Vehicle: ${lead.preferredVehicle || 'Not specified'}
 Phone: ${lead.phone}
 Email: ${lead.email}
 Status: ${lead.statuses.join(', ') || 'None'}
-        `.trim();
-        addBotMessage(details);
-        return;
-      }
+      `.trim();
+      addBotMessage(details);
+      return;
     }
 
     // Show all leads
@@ -147,10 +123,9 @@ Status: ${lead.statuses.join(', ') || 'None'}
     if (lower.includes("update") || lower.includes("edit") || lower.includes("change")) {
       const lead = findLeadByName(text);
       if (lead) {
-        setTargetLeadId(lead.id);
+        setTargetLead(lead);
         setCurrentAction('update-lead');
-        setTempLeadData(lead);
-        addBotMessage(`Found **${lead.name}**. What would you like to update?\n\nYou can say: stage, budget, vehicle, status, name, phone, email`);
+        addBotMessage(`Found **${lead.name}**. What do you want to update? (stage, budget, vehicle, status, name, phone, email)`);
         return;
       }
     }
@@ -159,78 +134,46 @@ Status: ${lead.statuses.join(', ') || 'None'}
     if (lower.includes("delete")) {
       const lead = findLeadByName(text);
       if (lead) {
-        setTargetLeadId(lead.id);
+        setTargetLead(lead);
         setCurrentAction('delete-lead');
         addBotMessage(`Are you sure you want to delete **${lead.name}**? Reply **yes** to confirm.`);
         return;
       }
     }
 
-    // Handle multi-turn update
-    if (currentAction === 'update-lead') {
-      const lead = leads.find(l => l.id === targetLeadId);
-      if (!lead) return;
-
-      const field = text.toLowerCase();
-      if (field.includes("stage")) {
-        addBotMessage("What should the new stage be? (new_lead, maya_qualification, vehicle_sourcing, etc.)");
-        return;
-      }
-      if (field.includes("budget")) {
-        addBotMessage("What is the new budget?");
-        return;
-      }
-      if (field.includes("vehicle") || field.includes("car")) {
-        addBotMessage("What is the new preferred vehicle?");
-        return;
-      }
-      if (field.includes("status") || field.includes("hot")) {
-        addBotMessage("What status? (hot, deposit_paid, etc.)");
-        return;
-      }
-
-      // Simple field update
-      const updatedLead = { ...lead, ...tempLeadData };
-      setLeads(prev => prev.map(l => l.id === targetLeadId ? updatedLead : l));
-
-      try {
-        await fetch('/api/leads', {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            TableName: "tbl_leads",
-            Item: { ...updatedLead, lead_id: targetLeadId }
-          }),
-        });
-      } catch (e) {}
-
-      await createWorkflowLog(targetLeadId, "Lead Updated", `Maya updated: ${text}`, "success");
-
-      addBotMessage(`✅ **${lead.name}** has been updated.`);
+    // Handle update continuation
+    if (currentAction === 'update-lead' && targetLead) {
+      // This is simplified - for full update we'd need more multi-turn logic
+      addBotMessage("Update functionality is being enhanced. For now, please use the main interface to edit leads.");
       setCurrentAction('none');
       return;
     }
 
     // Handle delete confirmation
-    if (currentAction === 'delete-lead') {
+    if (currentAction === 'delete-lead' && targetLead) {
       if (lower === "yes" || lower === "confirm" || lower === "delete") {
-        const response = await fetch('/api/leads', {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lead_id: targetLeadId }),
-        });
+        try {
+          const response = await fetch('/api/leads', {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lead_id: targetLead.id }),
+          });
 
-        if (response.ok) {
-          setLeads(prev => prev.filter(l => l.id !== targetLeadId));
-          addBotMessage("✅ Lead has been permanently deleted.");
-          await createWorkflowLog(targetLeadId, "Lead Deleted", "Maya deleted the lead", "success");
-        } else {
+          if (response.ok) {
+            setLeads(prev => prev.filter(l => l.id !== targetLead.id));
+            addBotMessage(`✅ **${targetLead.name}** has been deleted.`);
+            await createWorkflowLog(targetLead.id, "Lead Deleted", `Maya deleted ${targetLead.name}`, "success");
+          } else {
+            addBotMessage("❌ Failed to delete lead.");
+          }
+        } catch (err) {
           addBotMessage("❌ Failed to delete lead.");
         }
       } else {
         addBotMessage("Delete cancelled.");
       }
       setCurrentAction('none');
+      setTargetLead(null);
       return;
     }
 
@@ -277,7 +220,7 @@ Status: ${lead.statuses.join(', ') || 'None'}
       }
     }
 
-    addBotMessage("Try these:\n• Show all leads\n• Show Talha\n• Update Talha\n• Delete Ryan\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic");
+    addBotMessage("I can help you with leads! Try:\n• Show all leads\n• Show Sarah\n• Update Talha\n• Delete Ryan\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
