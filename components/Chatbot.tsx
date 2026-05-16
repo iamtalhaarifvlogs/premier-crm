@@ -18,32 +18,32 @@ export default function Chatbot() {
   const [isTyping, setIsTyping] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
 
-  const [currentAction, setCurrentAction] = useState<'none' | 'create-lead' | 'update-lead' | 'delete-lead'>('none');
-  const [targetLead, setTargetLead] = useState<Lead | null>(null);
-  const [tempLeadData, setTempLeadData] = useState<Partial<Lead>>({});
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
-  // Load leads
+  // Load real leads every time chatbot opens
   useEffect(() => {
     if (isOpen) {
       fetch('/api/leads')
         .then(res => res.json())
-        .then(data => setLeads(Array.isArray(data) ? data : []))
+        .then(data => {
+          const loaded = Array.isArray(data) ? data : [];
+          setLeads(loaded);
+          console.log("Maya loaded", loaded.length, "leads");
+        })
         .catch(() => setLeads([]));
     }
   }, [isOpen]);
 
-  // Welcome
+  // Welcome message
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       setMessages([{
         id: 'welcome',
-        text: "Hi! I'm Maya.\n\nJust talk naturally. Examples:\n• Show all leads\n• Show Sarah\n• Update Talha\n• Delete Ryan\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic",
+        text: "Hi! I'm Maya.\n\nTry these:\n• Show all leads\n• Show Talha\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic",
         isBot: true,
         timestamp: new Date()
       }]);
@@ -89,13 +89,26 @@ export default function Chatbot() {
   const processUserMessage = async (text: string) => {
     const lower = text.toLowerCase();
 
+    // Show all leads
+    if (lower.includes("all leads") || lower.includes("show leads") || lower.includes("list leads")) {
+      if (leads.length === 0) {
+        addBotMessage("No leads found yet.");
+        return;
+      }
+      const list = leads.map(l => 
+        `• \( {l.name} ( \){l.stage}) - ${l.preferredVehicle || 'N/A'} - \[ {l.budget}`
+      ).join('\n');
+      addBotMessage(`Here are all current leads:\n\n${list}`);
+      return;
+    }
+
     // Show specific lead
     const lead = findLeadByName(text);
     if (lead) {
       const details = `
 **${lead.name}**
 Stage: ${lead.stage}
-Budget: \[ {lead.budget}
+Budget: \]{lead.budget}
 Vehicle: ${lead.preferredVehicle || 'Not specified'}
 Phone: ${lead.phone}
 Email: ${lead.email}
@@ -105,119 +118,13 @@ Status: ${lead.statuses.join(', ') || 'None'}
       return;
     }
 
-    // Show all leads
-    if (lower.includes("all leads") || lower.includes("show leads") || lower.includes("list leads")) {
-      if (leads.length === 0) {
-        addBotMessage("No leads found yet.");
-        return;
-      }
-      const list = leads.map(l => `• \( {l.name} ( \){l.stage}) - ${l.preferredVehicle || 'N/A'} - \]{l.budget}`).join('\n');
-      addBotMessage(`Here are all current leads:\n\n${list}`);
-      return;
-    }
-
-    // Update lead - Improved
-    if (lower.includes("update") || lower.includes("edit") || lower.includes("change")) {
-      const lead = findLeadByName(text);
-      if (lead) {
-        setTargetLead(lead);
-        setCurrentAction('update-lead');
-        addBotMessage(`Found **${lead.name}**.\n\nCurrent details:\nStage: ${lead.stage}\nBudget: \[ {lead.budget}\nVehicle: ${lead.preferredVehicle || 'Not specified'}\n\nWhat would you like to update? (stage, budget, vehicle, status, name, phone, email)`);
-        return;
-      }
-    }
-
-    // Delete lead
-    if (lower.includes("delete")) {
-      const lead = findLeadByName(text);
-      if (lead) {
-        setTargetLead(lead);
-        setCurrentAction('delete-lead');
-        addBotMessage(`Are you sure you want to delete **${lead.name}**? Reply **yes** to confirm.`);
-        return;
-      }
-    }
-
-    // Handle delete confirmation
-    if (currentAction === 'delete-lead' && targetLead) {
-      if (lower === "yes" || lower === "confirm" || lower === "delete") {
-        try {
-          const response = await fetch('/api/leads', {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ lead_id: targetLead.id }),
-          });
-
-          if (response.ok) {
-            setLeads(prev => prev.filter(l => l.id !== targetLead.id));
-            addBotMessage(`✅ **${targetLead.name}** has been deleted.`);
-            await createWorkflowLog(targetLead.id, "Lead Deleted", `Maya deleted ${targetLead.name}`, "success");
-          } else {
-            addBotMessage("❌ Failed to delete lead.");
-          }
-        } catch (err) {
-          addBotMessage("❌ Failed to delete lead.");
-        }
-      } else {
-        addBotMessage("Delete cancelled.");
-      }
-      setCurrentAction('none');
-      setTargetLead(null);
-      return;
-    }
-
-    // Handle update continuation (basic)
-    if (currentAction === 'update-lead' && targetLead) {
-      addBotMessage("Update feature is being enhanced. For now, please use the main dashboard to edit leads.");
-      setCurrentAction('none');
-      setTargetLead(null);
-      return;
-    }
-
-    // Smart lead creation
+    // Add new lead (basic)
     if (lower.includes("add lead") || lower.includes("new lead") || lower.includes("create lead")) {
-      const parsed = parseLeadCreation(text);
-
-      if (Object.keys(parsed).length >= 2) {
-        const newLead: Lead = {
-          id: `lead-${Date.now()}`,
-          name: parsed.name || "Unknown Customer",
-          phone: parsed.phone || "",
-          email: parsed.email || "",
-          budget: parsed.budget || 25000,
-          preferredVehicle: parsed.preferredVehicle || "Not specified",
-          stage: "new_lead",
-          statuses: [],
-          assignedRep: null,
-          lastActivity: "Just now",
-          downPayment: 0,
-          location: "Unknown",
-          creditStatus: "good",
-          timeline: "Within 2 weeks",
-          createdAt: new Date().toISOString(),
-        };
-
-        setLeads(prev => [newLead, ...prev]);
-
-        try {
-          await fetch('/api/leads', {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              TableName: "tbl_leads",
-              Item: { ...newLead, lead_id: newLead.id }
-            }),
-          });
-        } catch (e) {}
-
-        await createWorkflowLog(newLead.id, "Lead Created", `Maya created: ${newLead.name}`, "success");
-
-        addBotMessage(`✅ Lead created successfully!\n\n**${newLead.name}**\nVehicle: ${newLead.preferredVehicle}\nBudget: \]{newLead.budget}`);
-        return;
-      }
+      addBotMessage("For now, please use the 'Add New Lead' button on the dashboard. I'm still learning full conversation mode.");
+      return;
     }
 
-    addBotMessage("I can help you with leads! Try:\n• Show all leads\n• Show Sarah\n• Update Talha\n• Delete Ryan\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic");
+    addBotMessage("Try these:\n• Show all leads\n• Show Talha\n• Add new lead (use dashboard for now)");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
