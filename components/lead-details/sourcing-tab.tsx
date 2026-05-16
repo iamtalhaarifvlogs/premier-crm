@@ -1,266 +1,136 @@
 "use client"
 
 import * as React from "react"
-import { X, Save, Edit2, Flame, CheckCircle } from "lucide-react"
+import { Car, MapPin, DollarSign, Gauge, CheckCircle, RefreshCw, Star } from "lucide-react"
 
-import { useCRM } from "@/lib/crm-context"
-import { Lead, PIPELINE_STAGES, getStatusColor, getStatusLabel } from "@/lib/mock-data"
-import { createWorkflowLog } from "@/lib/mock-data"
-import { cn } from "@/lib/utils"
+import { getVehicleMatches } from "@/lib/mock-data"
+import { Lead, formatCurrency } from "@/lib/mock-data"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Progress } from "@/components/ui/progress"
 
-import { ConversationTab } from "./conversation-tab"
-import { WorkflowLogsTab } from "./workflow-logs-tab"
-import { SourcingTab } from "./sourcing-tab"
+interface SourcingTabProps {
+  lead: Lead
+}
 
-export function LeadDetailsPanel() {
-  const { selectedLead, setSelectedLead, isDetailsPanelOpen, setIsDetailsPanelOpen, leads, setLeads } = useCRM()
-
-  const [isEditing, setIsEditing] = React.useState(false)
-  const [editedLead, setEditedLead] = React.useState<Lead | null>(null)
-  const [notification, setNotification] = React.useState<{ message: string; type: 'success' | 'error' } | null>(null)
+export function SourcingTab({ lead }: SourcingTabProps) {
+  const [matches, setMatches] = React.useState<any[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [isSearching, setIsSearching] = React.useState(false)
 
   React.useEffect(() => {
-    if (selectedLead) {
-      setEditedLead({ ...selectedLead })
-      setIsEditing(false)
-    }
-  }, [selectedLead])
+    loadMatches()
+  }, [])
 
-  React.useEffect(() => {
-    if (notification) {
-      const timer = setTimeout(() => setNotification(null), 4000)
-      return () => clearTimeout(timer)
-    }
-  }, [notification])
-
-  if (!selectedLead || !editedLead) return null
-
-  const handleSave = async () => {
-    if (!editedLead) return
-
-    const oldLead = selectedLead
-    const changes: string[] = []
-
-    if (oldLead.stage !== editedLead.stage) changes.push(`Stage → ${editedLead.stage}`)
-    if (JSON.stringify(oldLead.statuses) !== JSON.stringify(editedLead.statuses)) changes.push("Statuses updated")
-    if (oldLead.name !== editedLead.name) changes.push("Name updated")
-    if (oldLead.budget !== editedLead.budget) changes.push("Budget updated")
-    if (oldLead.preferredVehicle !== editedLead.preferredVehicle) changes.push("Vehicle updated")
-
-    // Update local state
-    setLeads(prev => prev.map(l => l.id === editedLead.id ? editedLead : l))
-
+  const loadMatches = async () => {
     try {
-      const response = await fetch('/api/leads', {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          TableName: "tbl_leads",
-          Item: {
-            lead_id: editedLead.id,
-            name: editedLead.name,
-            phone: editedLead.phone,
-            email: editedLead.email,
-            budget: editedLead.budget,
-            preferredVehicle: editedLead.preferredVehicle,
-            stage: editedLead.stage,
-            statuses: editedLead.statuses,
-            assignedRep: editedLead.assignedRep,
-            lastActivity: "Just now",
-            downPayment: editedLead.downPayment || 0,
-            location: editedLead.location,
-            creditStatus: editedLead.creditStatus,
-            timeline: editedLead.timeline,
-            createdAt: editedLead.createdAt,
-          }
-        }),
-      })
-
-      if (response.ok) {
-        setNotification({ message: "✅ Lead updated successfully!", type: 'success' })
-
-        if (changes.length > 0) {
-          await createWorkflowLog(
-            editedLead.id,
-            "Lead Updated",
-            changes.join(" | "),
-            "success"
-          )
-        }
-      } else {
-        setNotification({ message: "Saved locally only", type: 'error' })
-      }
+      const data = await getVehicleMatches()
+      setMatches(data)
     } catch (err) {
       console.error(err)
-      setNotification({ message: "Saved locally only", type: 'error' })
+    } finally {
+      setLoading(false)
     }
-
-    setSelectedLead(editedLead)
-    setIsEditing(false)
   }
 
-  const toggleStatus = (status: "hot" | "automation_paused" | "deposit_paid") => {
-    const current = editedLead.statuses
-    const updated = current.includes(status)
-      ? current.filter(s => s !== status)
-      : [...current, status]
-    setEditedLead({ ...editedLead, statuses: updated })
-  }
-
-  const updateField = (field: keyof Lead, value: any) => {
-    setEditedLead(prev => prev ? { ...prev, [field]: value } : null)
-  }
-
-  const handleClose = () => {
-    setIsDetailsPanelOpen(false)
+  const handleTriggerSourcing = () => {
+    setIsSearching(true)
     setTimeout(() => {
-      setSelectedLead(null)
-      setIsEditing(false)
-      setNotification(null)
-    }, 300)
+      loadMatches()
+      setIsSearching(false)
+    }, 1800)
   }
+
+  const primaryMatch = matches[0]
+  const alternatives = matches.slice(1)
 
   return (
-    <div className={`fixed inset-y-0 right-0 w-96 bg-background border-l shadow-2xl z-50 transform transition-transform duration-300 ${isDetailsPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-      <div className="flex h-full flex-col">
-        <div className="border-b p-4 flex items-center justify-between bg-muted/50">
-          <div>
-            <h2 className="font-semibold text-lg">{editedLead.name}</h2>
-            <p className="text-sm text-muted-foreground">{editedLead.preferredVehicle}</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setIsEditing(!isEditing)}>
-              {isEditing ? <Save className="size-4" /> : <Edit2 className="size-4" />}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleClose}>
-              <X className="size-4" />
-            </Button>
-          </div>
-        </div>
+    <div className="space-y-6 p-6">
+      {primaryMatch && (
+        <Card className="border-green-200 bg-green-50/50">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <CheckCircle className="size-5 text-green-600" />
+                Best Match Found
+              </CardTitle>
+              <Badge className="bg-green-600">{primaryMatch.matchScore}% Match</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="text-lg font-semibold">
+                  {primaryMatch.year} {primaryMatch.make} {primaryMatch.model}
+                </h4>
+                <p className="text-sm text-muted-foreground">{primaryMatch.color}</p>
+              </div>
+              <p className="text-2xl font-bold text-green-700">
+                {formatCurrency(primaryMatch.price)}
+              </p>
+            </div>
 
-        <Tabs defaultValue="overview" className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-4 mx-4 mt-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="conversation">Chat</TabsTrigger>
-            <TabsTrigger value="workflow">Logs</TabsTrigger>
-            <TabsTrigger value="sourcing">Sourcing</TabsTrigger>
-          </TabsList>
+            <div className="flex gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <Gauge className="size-4" /> {primaryMatch.mileage?.toLocaleString()} mi
+              </div>
+              <div className="flex items-center gap-1">
+                <MapPin className="size-4" /> {primaryMatch.dealership}
+              </div>
+            </div>
 
-          <ScrollArea className="flex-1">
-            <TabsContent value="overview" className="p-6 m-0 space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex justify-between items-center">
-                    Lead Details
-                    {isEditing && <span className="text-blue-600 text-sm font-medium">● Editing Mode</span>}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-5">
+            <Progress value={primaryMatch.matchScore} className="h-2" />
+          </CardContent>
+        </Card>
+      )}
+
+      {alternatives.length > 0 && (
+        <div>
+          <h3 className="font-medium mb-4 flex items-center gap-2">
+            <Star className="text-amber-500" /> Alternative Options
+          </h3>
+          <div className="space-y-3">
+            {alternatives.map((vehicle) => (
+              <Card key={vehicle.id}>
+                <CardContent className="p-4 flex justify-between items-center">
+                  <div className="flex gap-3">
+                    <Car className="size-10 text-muted-foreground mt-1" />
                     <div>
-                      <Label>Name</Label>
-                      <Input value={editedLead.name} onChange={(e) => updateField("name", e.target.value)} disabled={!isEditing} />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>Phone</Label>
-                        <Input value={editedLead.phone} onChange={(e) => updateField("phone", e.target.value)} disabled={!isEditing} />
-                      </div>
-                      <div>
-                        <Label>Email</Label>
-                        <Input value={editedLead.email} onChange={(e) => updateField("email", e.target.value)} disabled={!isEditing} />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>Budget ($)</Label>
-                        <Input type="number" value={editedLead.budget} onChange={(e) => updateField("budget", parseInt(e.target.value) || 0)} disabled={!isEditing} />
-                      </div>
-                      <div>
-                        <Label>Stage</Label>
-                        <Select value={editedLead.stage} onValueChange={(v) => updateField("stage", v)} disabled={!isEditing}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PIPELINE_STAGES.map(s => (
-                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label>Preferred Vehicle</Label>
-                      <Input value={editedLead.preferredVehicle} onChange={(e) => updateField("preferredVehicle", e.target.value)} disabled={!isEditing} />
+                      <h4 className="font-medium">
+                        {vehicle.year} {vehicle.make} {vehicle.model}
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        {vehicle.mileage?.toLocaleString()} mi • {vehicle.color}
+                      </p>
                     </div>
                   </div>
-
-                  <Separator />
-
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <Flame className="size-4 text-orange-500" />
-                        <Label>Hot Lead</Label>
-                      </div>
-                      <Switch checked={editedLead.statuses.includes("hot")} onCheckedChange={() => toggleStatus("hot")} disabled={!isEditing} />
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="size-4 text-green-500" />
-                        <Label>Deposit Paid</Label>
-                      </div>
-                      <Switch checked={editedLead.statuses.includes("deposit_paid")} onCheckedChange={() => toggleStatus("deposit_paid")} disabled={!isEditing} />
-                    </div>
+                  <div className="text-right">
+                    <p className="font-semibold">{formatCurrency(vehicle.price)}</p>
+                    <Badge variant="outline" className="mt-1">
+                      {vehicle.matchScore}% match
+                    </Badge>
                   </div>
-
-                  {isEditing && (
-                    <Button onClick={handleSave} className="w-full" size="lg">
-                      <Save className="mr-2 size-4" />
-                      Save Changes
-                    </Button>
-                  )}
                 </CardContent>
               </Card>
-            </TabsContent>
-
-            <TabsContent value="conversation" className="m-0">
-              <ConversationTab lead={editedLead} />
-            </TabsContent>
-
-            <TabsContent value="workflow" className="p-6 m-0">
-              <WorkflowLogsTab leadId={editedLead.id} />
-            </TabsContent>
-
-            <TabsContent value="sourcing" className="p-6 m-0">
-              <SourcingTab lead={editedLead} />
-            </TabsContent>
-          </ScrollArea>
-        </Tabs>
-      </div>
-
-      {notification && (
-        <div className={`fixed bottom-6 right-6 z-[60] px-6 py-3.5 rounded-xl shadow-xl text-sm font-medium ${
-          notification.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-        }`}>
-          {notification.message}
+            ))}
+          </div>
         </div>
       )}
+
+      <Button onClick={handleTriggerSourcing} disabled={isSearching} className="w-full" variant="outline">
+        {isSearching ? (
+          <>
+            <RefreshCw className="mr-2 size-4 animate-spin" />
+            Searching Inventory...
+          </>
+        ) : (
+          <>
+            <RefreshCw className="mr-2 size-4" />
+            Trigger Alternative Sourcing
+          </>
+        )}
+      </Button>
     </div>
   )
 }
