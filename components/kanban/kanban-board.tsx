@@ -137,7 +137,7 @@ export function KanbanBoard() {
     setIsDetailsPanelOpen(true)
   }
 
-  // ====================== ADD LEAD ======================
+  // Add Lead (Local + Attempt AWS)
   const handleAddLead = async (data: { 
     name: string; 
     phone: string; 
@@ -169,7 +169,7 @@ export function KanbanBoard() {
     setLeads((prev) => [newLead, ...prev])
     setIsAddLeadOpen(false)
 
-    // Try to save to AWS
+    // Try to save to AWS (background)
     try {
       const response = await fetch(
         "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data",
@@ -199,24 +199,18 @@ export function KanbanBoard() {
         }
       )
 
-      const responseText = await response.text()
-
       if (response.ok) {
-        console.log("✅ Saved successfully")
-        alert("Lead saved to database successfully!")
+        console.log("✅ Saved to database")
       } else {
-        console.warn("POST failed:", response.status, responseText)
-        alert(`Failed to save to database (Status ${response.status})`)
+        console.warn("POST failed:", response.status)
       }
-    } catch (err: any) {
-      console.error("POST error:", err)
-      alert("Could not save to database (CORS issue). Lead added locally only.")
+    } catch (err) {
+      console.error("POST blocked:", err)
     }
   }
 
   return (
     <div className="flex h-full flex-col">
-      {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 border-b p-4">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -266,14 +260,13 @@ export function KanbanBoard() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Lead</DialogTitle>
-              <DialogDescription>Will be added to New Lead column.</DialogDescription>
+              <DialogDescription>Added to New Lead stage.</DialogDescription>
             </DialogHeader>
             <AddLeadForm onSubmit={handleAddLead} onCancel={() => setIsAddLeadOpen(false)} />
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Kanban Board */}
       <ScrollArea className="flex-1">
         <div className="flex h-full gap-4 p-4">
           <DndContext
@@ -305,7 +298,6 @@ export function KanbanBoard() {
   )
 }
 
-// AddLeadForm
 function AddLeadForm({
   onSubmit,
   onCancel,
