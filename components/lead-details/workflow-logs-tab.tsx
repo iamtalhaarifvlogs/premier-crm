@@ -1,10 +1,15 @@
 "use client"
 
 import * as React from "react"
-import { Clock, CheckCircle, XCircle, AlertTriangle } from "lucide-react"
+import { Plus, CheckCircle, XCircle, AlertTriangle, Clock } from "lucide-react"
 
 import { getWorkflowLogs } from "@/lib/mock-data"
+import { useCRM } from "@/lib/crm-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 
 interface WorkflowLogsTabProps {
@@ -12,102 +17,142 @@ interface WorkflowLogsTabProps {
 }
 
 export function WorkflowLogsTab({ leadId }: WorkflowLogsTabProps) {
+  const { leads } = useCRM()
   const [logs, setLogs] = React.useState<any[]>([])
   const [loading, setLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
+  const [showAddForm, setShowAddForm] = React.useState(false)
+  const [newLog, setNewLog] = React.useState({
+    workflowName: "",
+    action: "",
+    status: "success" as "success" | "failed" | "skipped"
+  })
+
+  const loadLogs = async () => {
+    try {
+      const allLogs = await getWorkflowLogs()
+      const leadLogs = allLogs.filter((log: any) => 
+        log.leadId === leadId || log.lead_id === leadId
+      )
+      setLogs(leadLogs)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   React.useEffect(() => {
-    async function loadLogs() {
-      try {
-        console.log(`Loading workflow logs for lead: ${leadId}`)
-        const allLogs = await getWorkflowLogs()
-        
-        console.log(`Total workflow logs received: ${allLogs.length}`)
-
-        // More flexible matching
-        const leadLogs = allLogs.filter((log: any) => {
-          const logLeadId = log.leadId || log.lead_id || log.leadID
-          return logLeadId === leadId || logLeadId === `lead-${leadId}`
-        })
-
-        console.log(`Logs found for this lead: ${leadLogs.length}`)
-
-        setLogs(leadLogs)
-      } catch (err: any) {
-        console.error("Failed to load workflow logs:", err)
-        setError(err.message || "Failed to load logs")
-      } finally {
-        setLoading(false)
-      }
-    }
-
     loadLogs()
   }, [leadId])
 
-  if (loading) {
-    return <div className="p-12 text-center">Loading workflow logs...</div>
+  const handleAddLog = async () => {
+    if (!newLog.workflowName) return
+
+    const logEntry = {
+      TableName: "tbl_workflow_logs",
+      Item: {
+        lead_id: leadId,
+        timestamp: new Date().toISOString(),
+        workflowName: newLog.workflowName,
+        action: newLog.action || "Manual log",
+        status: newLog.status,
+      }
+    }
+
+    try {
+      const response = await fetch('/api/leads', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(logEntry),
+      })
+
+      if (response.ok) {
+        await loadLogs() // refresh
+        setNewLog({ workflowName: "", action: "", status: "success" })
+        setShowAddForm(false)
+      }
+    } catch (err) {
+      console.error(err)
+    }
   }
 
-  if (error) {
-    return (
-      <div className="p-12 text-center text-red-600">
-        Error: {error}
-      </div>
-    )
-  }
-
-  if (logs.length === 0) {
-    return (
-      <div className="p-12 text-center">
-        <AlertTriangle className="mx-auto size-12 text-muted-foreground mb-4" />
-        <h3 className="font-medium">No workflow logs yet</h3>
-        <p className="text-sm text-muted-foreground mt-2">
-          Automation actions for this lead will appear here once they run.
-        </p>
-      </div>
-    )
-  }
+  if (loading) return <div className="p-8 text-center">Loading logs...</div>
 
   return (
-    <div className="space-y-4 p-6">
-      <h3 className="font-medium text-lg flex items-center gap-2">
-        Workflow Activity ({logs.length})
-      </h3>
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="font-medium text-lg">Workflow Logs ({logs.length})</h3>
+        <Button onClick={() => setShowAddForm(!showAddForm)} size="sm">
+          <Plus className="size-4 mr-2" />
+          Add Log
+        </Button>
+      </div>
+
+      {showAddForm && (
+        <Card>
+          <CardContent className="p-4 space-y-4">
+            <div>
+              <Label>Workflow Name</Label>
+              <Input 
+                value={newLog.workflowName}
+                onChange={(e) => setNewLog({...newLog, workflowName: e.target.value})}
+                placeholder="e.g. Qualification Complete"
+              />
+            </div>
+            <div>
+              <Label>Action / Details</Label>
+              <Input 
+                value={newLog.action}
+                onChange={(e) => setNewLog({...newLog, action: e.target.value})}
+                placeholder="Optional description"
+              />
+            </div>
+            <div>
+              <Label>Status</Label>
+              <Select value={newLog.status} onValueChange={(v) => setNewLog({...newLog, status: v as any})}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="success">Success</SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                  <SelectItem value="skipped">Skipped</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleAddLog} className="flex-1">Add Log</Button>
+              <Button variant="outline" onClick={() => setShowAddForm(false)} className="flex-1">Cancel</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="space-y-3">
-        {logs.map((log, index) => (
-          <Card key={index}>
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  {log.status === "success" && <CheckCircle className="size-5 text-green-600 mt-0.5" />}
-                  {log.status === "failed" && <XCircle className="size-5 text-red-600 mt-0.5" />}
-                  {log.status === "skipped" && <AlertTriangle className="size-5 text-yellow-600 mt-0.5" />}
-
-                  <div>
-                    <p className="font-medium">{log.workflowName || "Workflow Action"}</p>
-                    <p className="text-sm text-muted-foreground">{log.action}</p>
+        {logs.length === 0 ? (
+          <p className="text-center text-muted-foreground py-8">No workflow logs yet</p>
+        ) : (
+          logs.map((log, i) => (
+            <Card key={i}>
+              <CardContent className="p-4">
+                <div className="flex justify-between">
+                  <div className="flex items-center gap-3">
+                    {log.status === "success" && <CheckCircle className="text-green-600" />}
+                    {log.status === "failed" && <XCircle className="text-red-600" />}
+                    {log.status === "skipped" && <AlertTriangle className="text-yellow-600" />}
+                    <div>
+                      <p className="font-medium">{log.workflowName}</p>
+                      {log.action && <p className="text-sm text-muted-foreground">{log.action}</p>}
+                    </div>
+                  </div>
+                  <div className="text-right text-xs text-muted-foreground">
+                    {new Date(log.timestamp).toLocaleString()}
                   </div>
                 </div>
-
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(log.timestamp).toLocaleString()}
-                  </p>
-                  <Badge variant="outline" className="mt-1 text-xs">
-                    {log.status}
-                  </Badge>
-                </div>
-              </div>
-
-              {log.metadata && (
-                <p className="mt-3 text-xs text-muted-foreground border-l-2 border-muted pl-3">
-                  {log.metadata}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
     </div>
   )
