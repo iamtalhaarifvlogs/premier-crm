@@ -24,33 +24,17 @@ export default function Chatbot() {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
+  // Fresh fetch every time
   const fetchLeads = async () => {
     try {
       const res = await fetch('/api/leads', { cache: 'no-store' });
       const data = await res.json();
-      // Normalize data in case API returns raw DynamoDB fields
-      const normalized = Array.isArray(data) ? data.map((item: any) => ({
-        id: item.id || item.lead_id || `lead-${Date.now()}`,
-        name: item.name || 'Unknown',
-        phone: item.phone || '',
-        email: item.email || '',
-        budget: Number(item.budget) || 0,
-        preferredVehicle: item.preferredVehicle || 'Not specified',
-        stage: item.stage || 'new_lead',
-        statuses: Array.isArray(item.statuses) ? item.statuses : [],
-        assignedRep: item.assignedRep || null,
-        lastActivity: item.lastActivity || 'N/A',
-        downPayment: Number(item.downPayment) || 0,
-        location: item.location || '',
-        creditStatus: item.creditStatus || 'good',
-        timeline: item.timeline || '',
-        createdAt: item.createdAt || '',
-      })) : [];
-      
-      setLeads(normalized);
-      return normalized;
+      const loaded = Array.isArray(data) ? data : [];
+      console.log('✅ Maya fetched', loaded.length, 'leads →', loaded); // Debug
+      setLeads(loaded);
+      return loaded;
     } catch (err) {
-      console.error("Maya fetch error:", err);
+      console.error('Maya fetch failed:', err);
       return [];
     }
   };
@@ -64,7 +48,7 @@ export default function Chatbot() {
     if (isOpen && messages.length === 0) {
       setMessages([{
         id: 'welcome',
-        text: "Hi! I'm Maya.\n\nTry these:\n• Show all leads\n• Tell me about Talha\n• Show Sarah",
+        text: "Hi! I'm Maya.\n\nTry:\n• Show all leads\n• Tell me about Talha\n• Show Sarah",
         isBot: true,
         timestamp: new Date()
       }]);
@@ -81,23 +65,16 @@ export default function Chatbot() {
     scrollToBottom();
   };
 
-  const findLeadByName = (name: string, currentLeads: Lead[]): Lead | undefined => {
+  const findLeadByName = (name: string): Lead | undefined => {
     const lower = name.toLowerCase().trim();
-    return currentLeads.find(l => 
-      l.name.toLowerCase().includes(lower) || lower.includes(l.name.toLowerCase())
-    );
+    return leads.find(l => l.name?.toLowerCase().includes(lower));
   };
 
   const handleSend = async () => {
     if (!inputValue.trim()) return;
 
     const userText = inputValue.trim();
-    setMessages(prev => [...prev, { 
-      id: Date.now().toString(), 
-      text: userText, 
-      isBot: false, 
-      timestamp: new Date() 
-    }]);
+    setMessages(prev => [...prev, { id: Date.now().toString(), text: userText, isBot: false, timestamp: new Date() }]);
     setInputValue('');
     setIsTyping(true);
 
@@ -109,17 +86,18 @@ export default function Chatbot() {
 
   const processUserMessage = async (text: string) => {
     const lower = text.toLowerCase();
+
     const freshLeads = await fetchLeads();
 
     // Show all leads
     if (lower.includes("all leads") || lower.includes("show leads") || lower.includes("list leads")) {
       if (freshLeads.length === 0) {
-        addBotMessage("No leads found yet.");
+        addBotMessage("No leads found in the database yet.");
         return;
       }
 
       const list = freshLeads
-        .map(l => `• \( {l.name} ( \){l.stage}) — ${l.preferredVehicle} — \[ {l.budget}`)
+        .map(l => `• \( {l.name || 'Unknown'} ( \){l.stage || 'new_lead'}) — ${l.preferredVehicle || 'N/A'} — \[ {l.budget || 0}`)
         .join('\n');
 
       addBotMessage(`Here are all current leads:\n\n${list}`);
@@ -127,9 +105,9 @@ export default function Chatbot() {
     }
 
     // Show specific lead
-    const lead = findLeadByName(text, freshLeads);
+    const lead = findLeadByName(text);
     if (lead) {
-      const hasDeposit = lead.statuses.includes("deposit_paid");
+      const hasDeposit = lead.statuses?.includes("deposit_paid") || false;
       const depositText = hasDeposit 
         ? "✅ Deposit Paid" 
         : lead.stage === "deposit_requested" 
@@ -137,22 +115,22 @@ export default function Chatbot() {
           : "No deposit yet";
 
       const details = `
-**${lead.name}**
+**${lead.name || 'Unknown'}**
 
-**Stage:** ${lead.stage}
-**Preferred Vehicle:** ${lead.preferredVehicle}
-**Budget:** \]{lead.budget}
-**Phone:** ${lead.phone}
-**Email:** ${lead.email}
+**Stage:** ${lead.stage || 'new_lead'}
+**Preferred Vehicle:** ${lead.preferredVehicle || 'Not specified'}
+**Budget:** \]{(lead.budget || 0).toLocaleString()}
+**Phone:** ${lead.phone || '—'}
+**Email:** ${lead.email || '—'}
 **Deposit:** ${depositText}
-**Last Activity:** ${lead.lastActivity}
+**Last Activity:** ${lead.lastActivity || '—'}
       `.trim();
 
       addBotMessage(details);
       return;
     }
 
-    addBotMessage("I couldn't find that lead.\n\nTry:\n• Show all leads\n• Tell me about [Name]");
+    addBotMessage("I couldn't find that lead.\n\nTry:\n• Show all leads\n• Tell me about [Lead Name]");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
