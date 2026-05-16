@@ -24,21 +24,20 @@ export default function Chatbot() {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
-  // Load leads every time chatbot opens
-  const loadLeads = async () => {
-    try {
-      const res = await fetch('/api/leads');
-      const data = await res.json();
-      setLeads(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Failed to load leads", err);
-      setLeads([]);
-    }
-  };
-
+  // Load leads when chatbot opens
   useEffect(() => {
     if (isOpen) {
-      loadLeads();
+      fetch('/api/leads')
+        .then(res => res.json())
+        .then(data => {
+          const loadedLeads = Array.isArray(data) ? data : [];
+          setLeads(loadedLeads);
+          console.log("Leads loaded in Maya:", loadedLeads.length);
+        })
+        .catch(err => {
+          console.error("Failed to load leads for Maya", err);
+          setLeads([]);
+        });
     }
   }, [isOpen]);
 
@@ -47,7 +46,7 @@ export default function Chatbot() {
     if (isOpen && messages.length === 0) {
       setMessages([{
         id: 'welcome',
-        text: "Hi! I'm Maya, your Premier Auto Plus AI Assistant.\n\nTry:\n• Show all leads\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic",
+        text: "Hi! I'm Maya, your Premier Auto Plus AI Assistant.\n\nTry these:\n• Show all leads\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic",
         isBot: true,
         timestamp: new Date()
       }]);
@@ -109,6 +108,7 @@ export default function Chatbot() {
   const processUserMessage = async (text: string) => {
     const lower = text.toLowerCase();
 
+    // Show all leads
     if (lower.includes("all leads") || lower.includes("show leads") || lower.includes("list leads")) {
       if (leads.length === 0) {
         addBotMessage("No leads found yet.");
@@ -162,7 +162,7 @@ export default function Chatbot() {
       }
     }
 
-    addBotMessage("Try these:\n• Show all leads\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic");
+    addBotMessage("Try these examples:\n• Show all leads\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -180,7 +180,6 @@ export default function Chatbot() {
 
       {isOpen && (
         <div className="fixed bottom-20 right-4 md:right-6 w-[92%] md:w-[380px] h-[480px] bg-white shadow-2xl rounded-3xl flex flex-col overflow-hidden z-[110]">
-          {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 flex items-center justify-between rounded-t-3xl">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-white/20 rounded-2xl flex items-center justify-center text-2xl">👋</div>
@@ -194,7 +193,6 @@ export default function Chatbot() {
             </button>
           </div>
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}>
@@ -218,7 +216,6 @@ export default function Chatbot() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
           <div className="p-4 border-t bg-white">
             <div className="flex gap-2">
               <input
