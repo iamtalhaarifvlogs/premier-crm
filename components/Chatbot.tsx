@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Bot } from 'lucide-react';
+import { Send, X, Bot, RefreshCw } from 'lucide-react';
 import { Lead } from '@/lib/mock-data';
 
 interface Message {
@@ -17,6 +17,7 @@ export default function Chatbot() {
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -24,22 +25,36 @@ export default function Chatbot() {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
-  // Load real leads every time chatbot opens
+  // Fresh fetch of leads
+  const fetchLeads = async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await fetch('/api/leads', { cache: 'no-store' });
+      const data = await res.json();
+      const loaded = Array.isArray(data) ? data : [];
+      setLeads(loaded);
+      return loaded;
+    } catch (err) {
+      console.error("Maya fetch error:", err);
+      return [];
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Load leads when opening
   useEffect(() => {
     if (isOpen) {
-      fetch('/api/leads')
-        .then(res => res.json())
-        .then(data => setLeads(Array.isArray(data) ? data : []))
-        .catch(() => setLeads([]));
+      fetchLeads();
     }
   }, [isOpen]);
 
-  // Welcome message
+  // Welcome
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       setMessages([{
         id: 'welcome',
-        text: "Hi! I'm Maya.\n\nJust talk naturally. Try:\n• Show all leads\n• Tell me about Talha\n• Show me Sarah\n• Details on Ryan",
+        text: "Hi! I'm Maya.\n\nTalk naturally:\n• Show all leads\n• Tell me about Talha\n• Show Sarah\n• Details on Ryan",
         isBot: true,
         timestamp: new Date()
       }]);
@@ -56,9 +71,9 @@ export default function Chatbot() {
     scrollToBottom();
   };
 
-  const findLeadByName = (name: string): Lead | undefined => {
+  const findLeadByName = (name: string, currentLeads: Lead[]): Lead | undefined => {
     const lower = name.toLowerCase().trim();
-    return leads.find(l => 
+    return currentLeads.find(l => 
       l.name.toLowerCase().includes(lower) || 
       lower.includes(l.name.toLowerCase())
     );
@@ -68,71 +83,68 @@ export default function Chatbot() {
     if (!inputValue.trim()) return;
 
     const userText = inputValue.trim();
-    const userMsg: Message = {
+    setMessages(prev => [...prev, {
       id: Date.now().toString(),
       text: userText,
       isBot: false,
       timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMsg]);
+    }]);
     setInputValue('');
     setIsTyping(true);
 
     setTimeout(async () => {
       await processUserMessage(userText);
       setIsTyping(false);
-    }, 700);
+    }, 600);
   };
 
   const processUserMessage = async (text: string) => {
     const lower = text.toLowerCase();
 
-    // ==================== SHOW ALL LEADS ====================
-    if (
-      lower.includes("all leads") ||
-      lower.includes("show leads") ||
-      lower.includes("list leads") ||
-      lower.includes("show me all")
-    ) {
-      if (leads.length === 0) {
-        addBotMessage("No leads found yet.");
+    // Always fetch fresh data for reliability
+    const freshLeads = await fetchLeads();
+
+    // Show all leads
+    if (lower.includes("all leads") || lower.includes("show leads") || lower.includes("list leads")) {
+      if (freshLeads.length === 0) {
+        addBotMessage("No leads found in the database yet.");
         return;
       }
-      const list = leads
-        .map(l => `• \( {l.name} ( \){l.stage}) - ${l.preferredVehicle || 'N/A'} - \[ {l.budget}`)
+      const list = freshLeads
+        .map(l => `• \( {l.name} ( \){l.stage}) — ${l.preferredVehicle || 'N/A'} — \[ {l.budget}`)
         .join('\n');
       addBotMessage(`Here are all current leads:\n\n${list}`);
       return;
     }
 
-    // ==================== SHOW SPECIFIC LEAD ====================
-    const lead = findLeadByName(text);
+    // Show specific lead
+    const lead = findLeadByName(text, freshLeads);
     if (lead) {
-      const depositStatus = lead.statuses.includes("deposit_paid") 
+      const hasDeposit = lead.statuses.includes("deposit_paid");
+      const depositText = hasDeposit 
         ? "✅ Deposit Paid" 
         : lead.stage === "deposit_requested" 
           ? "⏳ Deposit Requested" 
-          : "No deposit yet";
+          : "No deposit information";
 
       const details = `
 **${lead.name}**
 
-Stage: ${lead.stage}
-Preferred Vehicle: ${lead.preferredVehicle || 'Not specified'}
-Budget: \]{lead.budget.toLocaleString()}
-Phone: ${lead.phone}
-Email: ${lead.email}
-Deposit: ${depositStatus}
-Last Activity: ${lead.lastActivity}
+**Stage:** ${lead.stage}
+**Preferred Vehicle:** ${lead.preferredVehicle || 'Not specified'}
+**Budget:** \]{lead.budget.toLocaleString()}
+**Phone:** ${lead.phone}
+**Email:** ${lead.email}
+**Deposit:** ${depositText}
+**Last Activity:** ${lead.lastActivity}
       `.trim();
 
       addBotMessage(details);
       return;
     }
 
-    // Fallback (only for commands we are not handling yet)
-    addBotMessage("I can help you with leads! Try:\n• Show all leads\n• Tell me about Talha\n• Show me Sarah\n• Details on Ryan");
+    // Fallback
+    addBotMessage("I couldn't find that lead.\n\nTry:\n• Show all leads\n• Tell me about [Name]");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -155,7 +167,7 @@ Last Activity: ${lead.lastActivity}
               <div className="w-9 h-9 bg-white/20 rounded-2xl flex items-center justify-center text-2xl">👋</div>
               <div>
                 <p className="font-semibold">Maya</p>
-                <p className="text-xs opacity-90">AI Assistant • Online</p>
+                <p className="text-xs opacity-90">Live • Real-time Data</p>
               </div>
             </div>
             <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/20 rounded-2xl">
@@ -178,8 +190,8 @@ Last Activity: ${lead.lastActivity}
               <div className="flex justify-start">
                 <div className="bg-white px-5 py-3 rounded-3xl rounded-tl-none flex gap-1">
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]"></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150"></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-300"></div>
                 </div>
               </div>
             )}
@@ -198,7 +210,7 @@ Last Activity: ${lead.lastActivity}
               />
               <button
                 onClick={handleSend}
-                disabled={!inputValue.trim()}
+                disabled={!inputValue.trim() || isTyping}
                 className="w-12 h-12 bg-blue-600 disabled:bg-gray-400 text-white rounded-3xl flex items-center justify-center hover:bg-blue-700"
               >
                 <Send size={22} />
