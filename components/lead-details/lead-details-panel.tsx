@@ -36,7 +36,6 @@ export function LeadDetailsPanel() {
     }
   }, [selectedLead])
 
-  // Auto hide notification
   React.useEffect(() => {
     if (notification) {
       const timer = setTimeout(() => setNotification(null), 4000)
@@ -90,7 +89,6 @@ export function LeadDetailsPanel() {
       if (response.ok) {
         setNotification({ message: "✅ Lead updated successfully!", type: 'success' })
 
-        // Auto create workflow log
         if (changes.length > 0) {
           await createWorkflowLog(
             editedLead.id,
@@ -135,7 +133,6 @@ export function LeadDetailsPanel() {
   return (
     <div className={`fixed inset-y-0 right-0 w-96 bg-background border-l shadow-2xl z-50 transform transition-transform duration-300 ${isDetailsPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
       <div className="flex h-full flex-col">
-        {/* Header */}
         <div className="border-b p-4 flex items-center justify-between bg-muted/50">
           <div>
             <h2 className="font-semibold text-lg">{editedLead.name}</h2>
@@ -172,49 +169,28 @@ export function LeadDetailsPanel() {
                   <div className="space-y-5">
                     <div>
                       <Label>Name</Label>
-                      <Input 
-                        value={editedLead.name} 
-                        onChange={(e) => updateField("name", e.target.value)} 
-                        disabled={!isEditing} 
-                      />
+                      <Input value={editedLead.name} onChange={(e) => updateField("name", e.target.value)} disabled={!isEditing} />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label>Phone</Label>
-                        <Input 
-                          value={editedLead.phone} 
-                          onChange={(e) => updateField("phone", e.target.value)} 
-                          disabled={!isEditing} 
-                        />
+                        <Input value={editedLead.phone} onChange={(e) => updateField("phone", e.target.value)} disabled={!isEditing} />
                       </div>
                       <div>
                         <Label>Email</Label>
-                        <Input 
-                          value={editedLead.email} 
-                          onChange={(e) => updateField("email", e.target.value)} 
-                          disabled={!isEditing} 
-                        />
+                        <Input value={editedLead.email} onChange={(e) => updateField("email", e.target.value)} disabled={!isEditing} />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label>Budget ($)</Label>
-                        <Input 
-                          type="number" 
-                          value={editedLead.budget} 
-                          onChange={(e) => updateField("budget", parseInt(e.target.value) || 0)} 
-                          disabled={!isEditing} 
-                        />
+                        <Input type="number" value={editedLead.budget} onChange={(e) => updateField("budget", parseInt(e.target.value) || 0)} disabled={!isEditing} />
                       </div>
                       <div>
                         <Label>Stage</Label>
-                        <Select 
-                          value={editedLead.stage} 
-                          onValueChange={(v) => updateField("stage", v)} 
-                          disabled={!isEditing}
-                        >
+                        <Select value={editedLead.stage} onValueChange={(v) => updateField("stage", v)} disabled={!isEditing}>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
@@ -229,11 +205,7 @@ export function LeadDetailsPanel() {
 
                     <div>
                       <Label>Preferred Vehicle</Label>
-                      <Input 
-                        value={editedLead.preferredVehicle} 
-                        onChange={(e) => updateField("preferredVehicle", e.target.value)} 
-                        disabled={!isEditing} 
-                      />
+                      <Input value={editedLead.preferredVehicle} onChange={(e) => updateField("preferredVehicle", e.target.value)} disabled={!isEditing} />
                     </div>
                   </div>
 
@@ -245,11 +217,7 @@ export function LeadDetailsPanel() {
                         <Flame className="size-4 text-orange-500" />
                         <Label>Hot Lead</Label>
                       </div>
-                      <Switch 
-                        checked={editedLead.statuses.includes("hot")} 
-                        onCheckedChange={() => toggleStatus("hot")} 
-                        disabled={!isEditing} 
-                      />
+                      <Switch checked={editedLead.statuses.includes("hot")} onCheckedChange={() => toggleStatus("hot")} disabled={!isEditing} />
                     </div>
 
                     <div className="flex justify-between items-center">
@@ -257,11 +225,7 @@ export function LeadDetailsPanel() {
                         <CheckCircle className="size-4 text-green-500" />
                         <Label>Deposit Paid</Label>
                       </div>
-                      <Switch 
-                        checked={editedLead.statuses.includes("deposit_paid")} 
-                        onCheckedChange={() => toggleStatus("deposit_paid")} 
-                        disabled={!isEditing} 
-                      />
+                      <Switch checked={editedLead.statuses.includes("deposit_paid")} onCheckedChange={() => toggleStatus("deposit_paid")} disabled={!isEditing} />
                     </div>
                   </div>
 
@@ -290,7 +254,6 @@ export function LeadDetailsPanel() {
         </Tabs>
       </div>
 
-      {/* Notification */}
       {notification && (
         <div className={`fixed bottom-6 right-6 z-[60] px-6 py-3.5 rounded-xl shadow-xl text-sm font-medium ${
           notification.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
