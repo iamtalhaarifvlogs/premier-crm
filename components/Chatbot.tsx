@@ -18,26 +18,23 @@ export default function Chatbot() {
   const [isTyping, setIsTyping] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
 
+  // Multi-turn state
+  const [currentAction, setCurrentAction] = useState<'none' | 'create-lead'>('none');
+  const [tempLeadData, setTempLeadData] = useState<Partial<Lead>>({});
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
-  // Load real leads every time chatbot opens
+  // Load real leads
   useEffect(() => {
     if (isOpen) {
       fetch('/api/leads')
         .then(res => res.json())
-        .then(data => {
-          const loaded = Array.isArray(data) ? data : [];
-          setLeads(loaded);
-          console.log(`Maya loaded ${loaded.length} leads`);
-        })
-        .catch(err => {
-          console.error("Failed to load leads", err);
-          setLeads([]);
-        });
+        .then(data => setLeads(Array.isArray(data) ? data : []))
+        .catch(() => setLeads([]));
     }
   }, [isOpen]);
 
@@ -46,7 +43,7 @@ export default function Chatbot() {
     if (isOpen && messages.length === 0) {
       setMessages([{
         id: 'welcome',
-        text: "Hi! I'm Maya.\n\nTry:\n• Show all leads\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic",
+        text: "Hi! I'm Maya.\n\nTry:\n• Show all leads\n• Show Talha\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic",
         isBot: true,
         timestamp: new Date()
       }]);
@@ -61,6 +58,13 @@ export default function Chatbot() {
       timestamp: new Date()
     }]);
     scrollToBottom();
+  };
+
+  // Find lead by name
+  const findLeadByName = (name: string): Lead | undefined => {
+    return leads.find(l => 
+      l.name.toLowerCase().includes(name.toLowerCase())
+    );
   };
 
   const parseLeadCreation = (text: string): Partial<Lead> => {
@@ -108,17 +112,35 @@ export default function Chatbot() {
   const processUserMessage = async (text: string) => {
     const lower = text.toLowerCase();
 
+    // Show specific lead
+    const leadName = text.match(/show\s+([A-Z][a-z]+)/i)?.[1] || 
+                     text.match(/details?\s+about\s+([A-Z][a-z]+)/i)?.[1] ||
+                     text.match(/([A-Z][a-z]+)/)?.[0];
+
+    if (leadName) {
+      const lead = findLeadByName(leadName);
+      if (lead) {
+        const details = `
+**${lead.name}**
+Stage: ${lead.stage}
+Budget: \[ {lead.budget}
+Vehicle: ${lead.preferredVehicle}
+Phone: ${lead.phone}
+Email: ${lead.email}
+Status: ${lead.statuses.join(', ') || 'None'}
+        `.trim();
+        addBotMessage(details);
+        return;
+      }
+    }
+
     // Show all leads
     if (lower.includes("all leads") || lower.includes("show leads") || lower.includes("list leads")) {
       if (leads.length === 0) {
         addBotMessage("No leads found yet.");
         return;
       }
-
-      let list = leads.map(l => 
-        `• \( {l.name} ( \){l.stage}) - ${l.preferredVehicle || 'N/A'} - \[ {l.budget}`
-      ).join('\n');
-
+      const list = leads.map(l => `• \( {l.name} ( \){l.stage}) - ${l.preferredVehicle || 'N/A'} - \]{l.budget}`).join('\n');
       addBotMessage(`Here are all current leads:\n\n${list}`);
       return;
     }
@@ -127,7 +149,7 @@ export default function Chatbot() {
     if (lower.includes("add lead") || lower.includes("new lead") || lower.includes("create lead")) {
       const parsed = parseLeadCreation(text);
 
-      if (Object.keys(parsed).length >= 2) {
+      if (Object.keys(parsed).length >= 3) {
         const newLead: Lead = {
           id: `lead-${Date.now()}`,
           name: parsed.name || "Unknown Customer",
@@ -161,12 +183,81 @@ export default function Chatbot() {
 
         await createWorkflowLog(newLead.id, "Lead Created", `Maya created: ${newLead.name}`, "success");
 
-        addBotMessage(`✅ Lead created successfully!\n\n**${newLead.name}**\nVehicle: ${newLead.preferredVehicle}\nBudget: \]{newLead.budget}`);
+        addBotMessage(`✅ Lead created!\n\n**${newLead.name}**\nVehicle: ${newLead.preferredVehicle}\nBudget: \[ {newLead.budget}`);
+        return;
+      } else {
+        // Start multi-turn
+        setCurrentAction('create-lead');
+        setTempLeadData(parsed);
+        addBotMessage("Great! Let's create a new lead.\n\nWhat's the customer's full name?");
         return;
       }
     }
 
-    addBotMessage("Try these:\n• Show all leads\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic");
+    // Multi-turn lead creation
+    if (currentAction === 'create-lead') {
+      if (!tempLeadData.name) {
+        setTempLeadData({ ...tempLeadData, name: text });
+        addBotMessage("Got it. What's their phone number?");
+        return;
+      }
+      if (!tempLeadData.phone) {
+        setTempLeadData({ ...tempLeadData, phone: text });
+        addBotMessage("Perfect. What's their email address?");
+        return;
+      }
+      if (!tempLeadData.email) {
+        setTempLeadData({ ...tempLeadData, email: text });
+        addBotMessage("What's their budget in USD?");
+        return;
+      }
+      if (!tempLeadData.budget) {
+        setTempLeadData({ ...tempLeadData, budget: parseInt(text) || 25000 });
+        addBotMessage("Has the customer paid any deposit? (yes/no)");
+        return;
+      }
+      if (!tempLeadData.preferredVehicle) {
+        const newLead: Lead = {
+          id: `lead-${Date.now()}`,
+          name: tempLeadData.name!,
+          phone: tempLeadData.phone!,
+          email: tempLeadData.email!,
+          budget: tempLeadData.budget!,
+          preferredVehicle: text,
+          stage: "new_lead",
+          statuses: [],
+          assignedRep: null,
+          lastActivity: "Just now",
+          downPayment: 0,
+          location: "Unknown",
+          creditStatus: "good",
+          timeline: "Within 2 weeks",
+          createdAt: new Date().toISOString(),
+        };
+
+        setLeads(prev => [newLead, ...prev]);
+
+        try {
+          await fetch('/api/leads', {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              TableName: "tbl_leads",
+              Item: { ...newLead, lead_id: newLead.id }
+            }),
+          });
+        } catch (e) {}
+
+        await createWorkflowLog(newLead.id, "Lead Created", `Maya created: ${newLead.name}`, "success");
+
+        addBotMessage(`✅ Lead created successfully!\n\n**${newLead.name}**\nVehicle: ${newLead.preferredVehicle}\nBudget: \]{newLead.budget}`);
+        setCurrentAction('none');
+        setTempLeadData({});
+        return;
+      }
+    }
+
+    addBotMessage("Try these:\n• Show all leads\n• Show Talha\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
