@@ -19,8 +19,9 @@ export default function Chatbot() {
   const [leads, setLeads] = useState<Lead[]>([]);
 
   // Multi-turn state
-  const [currentAction, setCurrentAction] = useState<'none' | 'create-lead'>('none');
+  const [currentAction, setCurrentAction] = useState<'none' | 'create-lead' | 'update-lead' | 'delete-lead'>('none');
   const [tempLeadData, setTempLeadData] = useState<Partial<Lead>>({});
+  const [targetLeadId, setTargetLeadId] = useState<string>('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -43,7 +44,7 @@ export default function Chatbot() {
     if (isOpen && messages.length === 0) {
       setMessages([{
         id: 'welcome',
-        text: "Hi! I'm Maya.\n\nTry:\n• Show all leads\n• Show Talha\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic",
+        text: "Hi! I'm Maya.\n\nTry:\n• Show all leads\n• Show Talha\n• Update Talha\n• Delete Ryan\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic",
         isBot: true,
         timestamp: new Date()
       }]);
@@ -60,11 +61,8 @@ export default function Chatbot() {
     scrollToBottom();
   };
 
-  // Find lead by name
   const findLeadByName = (name: string): Lead | undefined => {
-    return leads.find(l => 
-      l.name.toLowerCase().includes(name.toLowerCase())
-    );
+    return leads.find(l => l.name.toLowerCase().includes(name.toLowerCase()));
   };
 
   const parseLeadCreation = (text: string): Partial<Lead> => {
@@ -114,7 +112,7 @@ export default function Chatbot() {
 
     // Show specific lead
     const leadName = text.match(/show\s+([A-Z][a-z]+)/i)?.[1] || 
-                     text.match(/details?\s+about\s+([A-Z][a-z]+)/i)?.[1] ||
+                     text.match(/details?\s+([A-Z][a-z]+)/i)?.[1] ||
                      text.match(/([A-Z][a-z]+)/)?.[0];
 
     if (leadName) {
@@ -124,7 +122,7 @@ export default function Chatbot() {
 **${lead.name}**
 Stage: ${lead.stage}
 Budget: \[ {lead.budget}
-Vehicle: ${lead.preferredVehicle}
+Vehicle: ${lead.preferredVehicle || 'Not specified'}
 Phone: ${lead.phone}
 Email: ${lead.email}
 Status: ${lead.statuses.join(', ') || 'None'}
@@ -145,11 +143,102 @@ Status: ${lead.statuses.join(', ') || 'None'}
       return;
     }
 
+    // Update lead
+    if (lower.includes("update") || lower.includes("edit") || lower.includes("change")) {
+      const lead = findLeadByName(text);
+      if (lead) {
+        setTargetLeadId(lead.id);
+        setCurrentAction('update-lead');
+        setTempLeadData(lead);
+        addBotMessage(`Found **${lead.name}**. What would you like to update?\n\nYou can say: stage, budget, vehicle, status, name, phone, email`);
+        return;
+      }
+    }
+
+    // Delete lead
+    if (lower.includes("delete")) {
+      const lead = findLeadByName(text);
+      if (lead) {
+        setTargetLeadId(lead.id);
+        setCurrentAction('delete-lead');
+        addBotMessage(`Are you sure you want to delete **${lead.name}**? Reply **yes** to confirm.`);
+        return;
+      }
+    }
+
+    // Handle multi-turn update
+    if (currentAction === 'update-lead') {
+      const lead = leads.find(l => l.id === targetLeadId);
+      if (!lead) return;
+
+      const field = text.toLowerCase();
+      if (field.includes("stage")) {
+        addBotMessage("What should the new stage be? (new_lead, maya_qualification, vehicle_sourcing, etc.)");
+        return;
+      }
+      if (field.includes("budget")) {
+        addBotMessage("What is the new budget?");
+        return;
+      }
+      if (field.includes("vehicle") || field.includes("car")) {
+        addBotMessage("What is the new preferred vehicle?");
+        return;
+      }
+      if (field.includes("status") || field.includes("hot")) {
+        addBotMessage("What status? (hot, deposit_paid, etc.)");
+        return;
+      }
+
+      // Simple field update
+      const updatedLead = { ...lead, ...tempLeadData };
+      setLeads(prev => prev.map(l => l.id === targetLeadId ? updatedLead : l));
+
+      try {
+        await fetch('/api/leads', {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            TableName: "tbl_leads",
+            Item: { ...updatedLead, lead_id: targetLeadId }
+          }),
+        });
+      } catch (e) {}
+
+      await createWorkflowLog(targetLeadId, "Lead Updated", `Maya updated: ${text}`, "success");
+
+      addBotMessage(`✅ **${lead.name}** has been updated.`);
+      setCurrentAction('none');
+      return;
+    }
+
+    // Handle delete confirmation
+    if (currentAction === 'delete-lead') {
+      if (lower === "yes" || lower === "confirm" || lower === "delete") {
+        const response = await fetch('/api/leads', {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lead_id: targetLeadId }),
+        });
+
+        if (response.ok) {
+          setLeads(prev => prev.filter(l => l.id !== targetLeadId));
+          addBotMessage("✅ Lead has been permanently deleted.");
+          await createWorkflowLog(targetLeadId, "Lead Deleted", "Maya deleted the lead", "success");
+        } else {
+          addBotMessage("❌ Failed to delete lead.");
+        }
+      } else {
+        addBotMessage("Delete cancelled.");
+      }
+      setCurrentAction('none');
+      return;
+    }
+
     // Smart lead creation
     if (lower.includes("add lead") || lower.includes("new lead") || lower.includes("create lead")) {
       const parsed = parseLeadCreation(text);
 
-      if (Object.keys(parsed).length >= 3) {
+      if (Object.keys(parsed).length >= 2) {
         const newLead: Lead = {
           id: `lead-${Date.now()}`,
           name: parsed.name || "Unknown Customer",
@@ -183,81 +272,12 @@ Status: ${lead.statuses.join(', ') || 'None'}
 
         await createWorkflowLog(newLead.id, "Lead Created", `Maya created: ${newLead.name}`, "success");
 
-        addBotMessage(`✅ Lead created!\n\n**${newLead.name}**\nVehicle: ${newLead.preferredVehicle}\nBudget: \[ {newLead.budget}`);
-        return;
-      } else {
-        // Start multi-turn
-        setCurrentAction('create-lead');
-        setTempLeadData(parsed);
-        addBotMessage("Great! Let's create a new lead.\n\nWhat's the customer's full name?");
+        addBotMessage(`✅ Lead created!\n\n**${newLead.name}**\nVehicle: ${newLead.preferredVehicle}\nBudget: $${newLead.budget}`);
         return;
       }
     }
 
-    // Multi-turn lead creation
-    if (currentAction === 'create-lead') {
-      if (!tempLeadData.name) {
-        setTempLeadData({ ...tempLeadData, name: text });
-        addBotMessage("Got it. What's their phone number?");
-        return;
-      }
-      if (!tempLeadData.phone) {
-        setTempLeadData({ ...tempLeadData, phone: text });
-        addBotMessage("Perfect. What's their email address?");
-        return;
-      }
-      if (!tempLeadData.email) {
-        setTempLeadData({ ...tempLeadData, email: text });
-        addBotMessage("What's their budget in USD?");
-        return;
-      }
-      if (!tempLeadData.budget) {
-        setTempLeadData({ ...tempLeadData, budget: parseInt(text) || 25000 });
-        addBotMessage("Has the customer paid any deposit? (yes/no)");
-        return;
-      }
-      if (!tempLeadData.preferredVehicle) {
-        const newLead: Lead = {
-          id: `lead-${Date.now()}`,
-          name: tempLeadData.name!,
-          phone: tempLeadData.phone!,
-          email: tempLeadData.email!,
-          budget: tempLeadData.budget!,
-          preferredVehicle: text,
-          stage: "new_lead",
-          statuses: [],
-          assignedRep: null,
-          lastActivity: "Just now",
-          downPayment: 0,
-          location: "Unknown",
-          creditStatus: "good",
-          timeline: "Within 2 weeks",
-          createdAt: new Date().toISOString(),
-        };
-
-        setLeads(prev => [newLead, ...prev]);
-
-        try {
-          await fetch('/api/leads', {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              TableName: "tbl_leads",
-              Item: { ...newLead, lead_id: newLead.id }
-            }),
-          });
-        } catch (e) {}
-
-        await createWorkflowLog(newLead.id, "Lead Created", `Maya created: ${newLead.name}`, "success");
-
-        addBotMessage(`✅ Lead created successfully!\n\n**${newLead.name}**\nVehicle: ${newLead.preferredVehicle}\nBudget: \]{newLead.budget}`);
-        setCurrentAction('none');
-        setTempLeadData({});
-        return;
-      }
-    }
-
-    addBotMessage("Try these:\n• Show all leads\n• Show Talha\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic");
+    addBotMessage("Try these:\n• Show all leads\n• Show Talha\n• Update Talha\n• Delete Ryan\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
