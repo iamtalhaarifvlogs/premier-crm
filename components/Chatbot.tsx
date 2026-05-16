@@ -24,19 +24,30 @@ export default function Chatbot() {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
-  // Load real leads
-  useEffect(() => {
-    fetch('/api/leads')
-      .then(res => res.json())
-      .then(data => setLeads(Array.isArray(data) ? data : []))
-      .catch(() => {});
-  }, []);
+  // Load leads every time chatbot opens
+  const loadLeads = async () => {
+    try {
+      const res = await fetch('/api/leads');
+      const data = await res.json();
+      setLeads(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load leads", err);
+      setLeads([]);
+    }
+  };
 
+  useEffect(() => {
+    if (isOpen) {
+      loadLeads();
+    }
+  }, [isOpen]);
+
+  // Welcome message
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       setMessages([{
         id: 'welcome',
-        text: "Hi! I'm Maya. Try these:\n• Show all leads\n• Add new lead John Smith, phone 03001234567, budget 45000, Honda Civic",
+        text: "Hi! I'm Maya, your Premier Auto Plus AI Assistant.\n\nTry:\n• Show all leads\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic",
         isBot: true,
         timestamp: new Date()
       }]);
@@ -53,40 +64,23 @@ export default function Chatbot() {
     scrollToBottom();
   };
 
-  // Improved smart parser
   const parseLeadCreation = (text: string): Partial<Lead> => {
     const data: Partial<Lead> = {};
 
-    // Name
     const nameMatch = text.match(/([A-Z][a-z]+(?:\s[A-Z][a-z]+)+)/);
     if (nameMatch) data.name = nameMatch[0];
 
-    // Phone
     const phoneMatch = text.match(/(\+?\d{1,3}[-.\s]?)?(\d{3}[-.\s]?\d{3}[-.\s]?\d{4}|\d{10,})/);
     if (phoneMatch) data.phone = phoneMatch[0];
 
-    // Email
     const emailMatch = text.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
     if (emailMatch) data.email = emailMatch[0];
 
-    // Budget
     const budgetMatch = text.match(/budget[:\s]*\$?(\d{1,3}(?:,\d{3})*|\d+)/i);
     if (budgetMatch) data.budget = parseInt(budgetMatch[1].replace(/,/g, ''));
 
-    // Vehicle - Improved matching
     const vehicleMatch = text.match(/(?:wants?|for|vehicle|car|model|buy)[:\s]*([A-Za-z0-9\s]+)/i);
     if (vehicleMatch) data.preferredVehicle = vehicleMatch[1].trim();
-
-    // Fallback vehicle detection
-    if (!data.preferredVehicle) {
-      const commonVehicles = ['honda', 'toyota', 'civic', 'accord', 'camry', 'corolla', 'fortuner', 'hilux'];
-      for (const v of commonVehicles) {
-        if (text.toLowerCase().includes(v)) {
-          data.preferredVehicle = text.split(' ').find(word => word.toLowerCase().includes(v)) || v;
-          break;
-        }
-      }
-    }
 
     return data;
   };
@@ -115,13 +109,12 @@ export default function Chatbot() {
   const processUserMessage = async (text: string) => {
     const lower = text.toLowerCase();
 
-    // Show all leads
     if (lower.includes("all leads") || lower.includes("show leads") || lower.includes("list leads")) {
       if (leads.length === 0) {
         addBotMessage("No leads found yet.");
         return;
       }
-      const list = leads.map(l => `• \( {l.name} ( \){l.stage}) - ${l.preferredVehicle} - \[ {l.budget}`).join('\n');
+      const list = leads.map(l => `• \( {l.name} ( \){l.stage}) - ${l.preferredVehicle || 'N/A'} - \[ {l.budget}`).join('\n');
       addBotMessage(`Here are all current leads:\n\n${list}`);
       return;
     }
@@ -169,7 +162,7 @@ export default function Chatbot() {
       }
     }
 
-    addBotMessage("Try these examples:\n• Show all leads\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic");
+    addBotMessage("Try these:\n• Show all leads\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -186,7 +179,8 @@ export default function Chatbot() {
       </button>
 
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-[380px] h-[520px] bg-white shadow-2xl rounded-3xl flex flex-col overflow-hidden z-[110]">
+        <div className="fixed bottom-20 right-4 md:right-6 w-[92%] md:w-[380px] h-[480px] bg-white shadow-2xl rounded-3xl flex flex-col overflow-hidden z-[110]">
+          {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 flex items-center justify-between rounded-t-3xl">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-white/20 rounded-2xl flex items-center justify-center text-2xl">👋</div>
@@ -200,10 +194,11 @@ export default function Chatbot() {
             </button>
           </div>
 
+          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}>
-                <div className={`max-w-[80%] px-5 py-3.5 rounded-3xl text-[15px] leading-relaxed ${
+                <div className={`max-w-[85%] px-5 py-3.5 rounded-3xl text-[15px] leading-relaxed ${
                   msg.isBot ? 'bg-white border shadow-sm rounded-tl-none' : 'bg-blue-600 text-white rounded-tr-none'
                 }`}>
                   {msg.text}
@@ -223,6 +218,7 @@ export default function Chatbot() {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Input */}
           <div className="p-4 border-t bg-white">
             <div className="flex gap-2">
               <input
@@ -231,7 +227,7 @@ export default function Chatbot() {
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Talk to Maya naturally..."
-                className="flex-1 px-5 py-3 bg-gray-100 rounded-3xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-5 py-3 bg-gray-100 rounded-3xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               />
               <button
                 onClick={handleSend}
