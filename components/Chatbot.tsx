@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Bot, RefreshCw } from 'lucide-react';
+import { Send, X, Bot } from 'lucide-react';
 import { Lead } from '@/lib/mock-data';
 
 interface Message {
@@ -17,7 +17,6 @@ export default function Chatbot() {
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -25,9 +24,8 @@ export default function Chatbot() {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
-  // Fresh fetch of leads
+  // Fresh fetch
   const fetchLeads = async () => {
-    setIsRefreshing(true);
     try {
       const res = await fetch('/api/leads', { cache: 'no-store' });
       const data = await res.json();
@@ -35,18 +33,13 @@ export default function Chatbot() {
       setLeads(loaded);
       return loaded;
     } catch (err) {
-      console.error("Maya fetch error:", err);
+      console.error("Maya fetch failed:", err);
       return [];
-    } finally {
-      setIsRefreshing(false);
     }
   };
 
-  // Load leads when opening
   useEffect(() => {
-    if (isOpen) {
-      fetchLeads();
-    }
+    if (isOpen) fetchLeads();
   }, [isOpen]);
 
   // Welcome
@@ -54,7 +47,7 @@ export default function Chatbot() {
     if (isOpen && messages.length === 0) {
       setMessages([{
         id: 'welcome',
-        text: "Hi! I'm Maya.\n\nTalk naturally:\n• Show all leads\n• Tell me about Talha\n• Show Sarah\n• Details on Ryan",
+        text: "Hi! I'm Maya.\n\nTry:\n• Show all leads\n• Tell me about Talha\n• Show Sarah",
         isBot: true,
         timestamp: new Date()
       }]);
@@ -71,80 +64,71 @@ export default function Chatbot() {
     scrollToBottom();
   };
 
-  const findLeadByName = (name: string, currentLeads: Lead[]): Lead | undefined => {
+  const findLeadByName = (name: string): Lead | undefined => {
     const lower = name.toLowerCase().trim();
-    return currentLeads.find(l => 
-      l.name.toLowerCase().includes(lower) || 
-      lower.includes(l.name.toLowerCase())
-    );
+    return leads.find(l => l.name.toLowerCase().includes(lower));
   };
 
   const handleSend = async () => {
     if (!inputValue.trim()) return;
 
     const userText = inputValue.trim();
-    setMessages(prev => [...prev, {
-      id: Date.now().toString(),
-      text: userText,
-      isBot: false,
-      timestamp: new Date()
-    }]);
+    setMessages(prev => [...prev, { id: Date.now().toString(), text: userText, isBot: false, timestamp: new Date() }]);
     setInputValue('');
     setIsTyping(true);
 
     setTimeout(async () => {
       await processUserMessage(userText);
       setIsTyping(false);
-    }, 600);
+    }, 700);
   };
 
   const processUserMessage = async (text: string) => {
     const lower = text.toLowerCase();
 
-    // Always fetch fresh data for reliability
+    // Always use fresh data
     const freshLeads = await fetchLeads();
 
-    // Show all leads
+    // ==================== SHOW ALL LEADS ====================
     if (lower.includes("all leads") || lower.includes("show leads") || lower.includes("list leads")) {
       if (freshLeads.length === 0) {
         addBotMessage("No leads found in the database yet.");
         return;
       }
+
       const list = freshLeads
         .map(l => `• \( {l.name} ( \){l.stage}) — ${l.preferredVehicle || 'N/A'} — \[ {l.budget}`)
         .join('\n');
+
       addBotMessage(`Here are all current leads:\n\n${list}`);
       return;
     }
 
-    // Show specific lead
-    const lead = findLeadByName(text, freshLeads);
+    // ==================== SHOW SPECIFIC LEAD ====================
+    const lead = findLeadByName(text);
     if (lead) {
-      const hasDeposit = lead.statuses.includes("deposit_paid");
+      const hasDeposit = lead.statuses?.includes("deposit_paid") || false;
       const depositText = hasDeposit 
         ? "✅ Deposit Paid" 
-        : lead.stage === "deposit_requested" 
-          ? "⏳ Deposit Requested" 
-          : "No deposit information";
+        : (lead.stage === "deposit_requested" ? "⏳ Deposit Requested" : "No deposit yet");
 
       const details = `
 **${lead.name}**
 
 **Stage:** ${lead.stage}
 **Preferred Vehicle:** ${lead.preferredVehicle || 'Not specified'}
-**Budget:** \]{lead.budget.toLocaleString()}
-**Phone:** ${lead.phone}
-**Email:** ${lead.email}
-**Deposit:** ${depositText}
-**Last Activity:** ${lead.lastActivity}
+**Budget:** \]{lead.budget?.toLocaleString() || 0}
+**Phone:** ${lead.phone || '—'}
+**Email:** ${lead.email || '—'}
+**Deposit Status:** ${depositText}
+**Last Activity:** ${lead.lastActivity || '—'}
       `.trim();
 
       addBotMessage(details);
       return;
     }
 
-    // Fallback
-    addBotMessage("I couldn't find that lead.\n\nTry:\n• Show all leads\n• Tell me about [Name]");
+    addBotMessage("I couldn't find that lead.\n\nTry:\n• Show all leads\n• Tell me about [Lead Name]");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -161,13 +145,13 @@ export default function Chatbot() {
       </button>
 
       {isOpen && (
-        <div className="fixed bottom-20 right-4 md:right-6 w-[92%] md:w-[380px] h-[480px] bg-white shadow-2xl rounded-3xl flex flex-col overflow-hidden z-[110]">
+        <div className="fixed bottom-20 right-4 md:right-6 w-[92%] md:w-[380px] h-[520px] bg-white shadow-2xl rounded-3xl flex flex-col overflow-hidden z-[110]">
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 flex items-center justify-between rounded-t-3xl">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-white/20 rounded-2xl flex items-center justify-center text-2xl">👋</div>
               <div>
                 <p className="font-semibold">Maya</p>
-                <p className="text-xs opacity-90">Live • Real-time Data</p>
+                <p className="text-xs opacity-90">Live • Real-time</p>
               </div>
             </div>
             <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/20 rounded-2xl">
@@ -178,7 +162,7 @@ export default function Chatbot() {
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}>
-                <div className={`max-w-[85%] px-5 py-3.5 rounded-3xl text-[15px] leading-relaxed ${
+                <div className={`max-w-[85%] px-5 py-3.5 rounded-3xl text-[15px] leading-relaxed whitespace-pre-wrap ${
                   msg.isBot ? 'bg-white border shadow-sm rounded-tl-none' : 'bg-blue-600 text-white rounded-tr-none'
                 }`}>
                   {msg.text}
