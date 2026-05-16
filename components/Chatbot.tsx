@@ -14,19 +14,26 @@ interface Message {
 }
 
 export default function Chatbot() {
-  const { leads, setLeads, addWorkflowLog: contextAddLog } = useCRM();
+  // Safe guard - if outside provider, don't crash
+  let crmContext;
+  try {
+    crmContext = useCRM();
+  } catch {
+    crmContext = null;
+  }
+
+  const leads = crmContext?.leads || [];
+  const setLeads = crmContext?.setLeads || (() => {});
 
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Conversation state for multi-turn actions (e.g. creating a lead)
-  const [currentAction, setCurrentAction] = useState<'none' | 'create-lead' | 'update-lead' | 'delete-lead'>('none');
+  const [currentAction, setCurrentAction] = useState<'none' | 'create-lead'>('none');
   const [tempLeadData, setTempLeadData] = useState<Partial<Lead>>({});
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -41,7 +48,7 @@ export default function Chatbot() {
     if (isOpen && messages.length === 0) {
       setMessages([{
         id: 'welcome',
-        text: "Hi! I'm Maya, your Premier Auto Plus AI Assistant. How can I help you today? I can manage leads, show pipeline status, create new leads, update them, or delete them.",
+        text: "Hi! I'm Maya, your Premier Auto Plus AI Assistant.\n\nI can manage leads, show pipeline, create/update/delete leads, and more.\n\nJust talk to me naturally!",
         isBot: true,
         timestamp: new Date()
       }]);
@@ -59,6 +66,28 @@ export default function Chatbot() {
     scrollToBottom();
   };
 
+  const parseLeadCreation = (text: string): Partial<Lead> => {
+    const lower = text.toLowerCase();
+    const data: Partial<Lead> = {};
+
+    const nameMatch = text.match(/([A-Z][a-z]+(?:\s[A-Z][a-z]+)+)/);
+    if (nameMatch) data.name = nameMatch[0];
+
+    const phoneMatch = text.match(/(\+?\d{1,3}[-.\s]?)?(\d{3}[-.\s]?\d{3}[-.\s]?\d{4}|\d{10,})/);
+    if (phoneMatch) data.phone = phoneMatch[0];
+
+    const emailMatch = text.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
+    if (emailMatch) data.email = emailMatch[0];
+
+    const budgetMatch = text.match(/budget[:\s]*\$?(\d{1,3}(?:,\d{3})*|\d+)/i);
+    if (budgetMatch) data.budget = parseInt(budgetMatch[1].replace(/,/g, ''));
+
+    const vehicleMatch = text.match(/(?:wants?|for|vehicle|car|model)[:\s]*([A-Za-z0-9\s]+)/i);
+    if (vehicleMatch) data.preferredVehicle = vehicleMatch[1].trim();
+
+    return data;
+  };
+
   const handleSend = async () => {
     if (!inputValue.trim()) return;
 
@@ -70,88 +99,41 @@ export default function Chatbot() {
     };
 
     setMessages(prev => [...prev, userMsg]);
-    const userText = inputValue.trim().toLowerCase();
+    const userText = inputValue.trim();
     setInputValue('');
     setIsTyping(true);
 
     setTimeout(async () => {
       await processUserMessage(userText);
       setIsTyping(false);
-    }, 600);
+    }, 650);
   };
 
   const processUserMessage = async (text: string) => {
-    // Show all leads
-    if (text.includes("all leads") || text.includes("show leads") || text.includes("list leads")) {
+    const lower = text.toLowerCase();
+
+    if (lower.includes("all leads") || lower.includes("show leads") || lower.includes("list leads")) {
       if (leads.length === 0) {
-        addBotMessage("No leads found in the system yet.");
+        addBotMessage("No leads found yet.");
         return;
       }
-      const leadList = leads.map(l => `• \( {l.name} ( \){l.stage}) - ${l.preferredVehicle}`).join('\n');
-      addBotMessage(`Here are all current leads:\n${leadList}\n\nWould you like details on any specific lead?`);
+      const list = leads.map(l => `• \( {l.name} ( \){l.stage}) - ${l.preferredVehicle}`).join('\n');
+      addBotMessage(`Here are all current leads:\n\n${list}`);
       return;
     }
 
-    // Show specific lead
-    const leadMatch = leads.find(l => 
-      l.name.toLowerCase().includes(text) || 
-      l.id.toLowerCase().includes(text) ||
-      (l.email && l.email.toLowerCase().includes(text))
-    );
+    // Smart one-shot lead creation
+    if (lower.includes("add lead") || lower.includes("new lead") || lower.includes("create lead")) {
+      const parsed = parseLeadCreation(text);
 
-    if (leadMatch) {
-      const details = `
-Name: ${leadMatch.name}
-Stage: ${leadMatch.stage}
-Budget: $${leadMatch.budget}
-Vehicle: ${leadMatch.preferredVehicle}
-Status: ${leadMatch.statuses.join(', ') || 'None'}
-Phone: ${leadMatch.phone}
-Email: ${leadMatch.email}
-      `.trim();
-
-      addBotMessage(`Here's the details for **\( {leadMatch.name}**:\n\n \){details}\n\nWhat would you like to do? (Edit / Delete / Mark Hot / etc.)`);
-      return;
-    }
-
-    // Create new lead flow
-    if (text.includes("add lead") || text.includes("new lead") || text.includes("create lead")) {
-      setCurrentAction('create-lead');
-      setTempLeadData({});
-      addBotMessage("Great! Let's create a new lead. What's the customer's full name?");
-      return;
-    }
-
-    // Multi-turn lead creation
-    if (currentAction === 'create-lead') {
-      if (!tempLeadData.name) {
-        setTempLeadData({ ...tempLeadData, name: inputValue.trim() });
-        addBotMessage("Got it. What's their phone number?");
-        return;
-      }
-      if (!tempLeadData.phone) {
-        setTempLeadData({ ...tempLeadData, phone: inputValue.trim() });
-        addBotMessage("Perfect. What's their email address?");
-        return;
-      }
-      if (!tempLeadData.email) {
-        setTempLeadData({ ...tempLeadData, email: inputValue.trim() });
-        addBotMessage("What's their budget (in USD)?");
-        return;
-      }
-      if (!tempLeadData.budget) {
-        setTempLeadData({ ...tempLeadData, budget: parseInt(inputValue) || 25000 });
-        addBotMessage("Finally, what's their preferred vehicle?");
-        return;
-      }
-      if (!tempLeadData.preferredVehicle) {
+      if (Object.keys(parsed).length >= 2) {   // Enough info
         const newLead: Lead = {
           id: `lead-${Date.now()}`,
-          name: tempLeadData.name!,
-          phone: tempLeadData.phone!,
-          email: tempLeadData.email!,
-          budget: tempLeadData.budget!,
-          preferredVehicle: inputValue.trim(),
+          name: parsed.name || "Unknown Customer",
+          phone: parsed.phone || "",
+          email: parsed.email || "",
+          budget: parsed.budget || 25000,
+          preferredVehicle: parsed.preferredVehicle || "Not specified",
           stage: "new_lead",
           statuses: [],
           assignedRep: null,
@@ -165,19 +147,15 @@ Email: ${leadMatch.email}
 
         setLeads(prev => [newLead, ...prev]);
 
-        // Auto log
-        await createWorkflowLog(newLead.id, "Lead Created", `Maya created new lead: ${newLead.name}`, "success");
+        await createWorkflowLog(newLead.id, "Lead Created", `Maya created: ${newLead.name}`, "success");
 
-        addBotMessage(`✅ Lead created successfully!\n\n**${newLead.name}** has been added to New Lead stage.`);
-
-        setCurrentAction('none');
-        setTempLeadData({});
+        addBotMessage(`✅ Lead created!\n\n**${newLead.name}** added to New Lead stage.`);
         return;
       }
     }
 
-    // Default smart response
-    addBotMessage("I can help you with leads! Try saying:\n• Show all leads\n• Add new lead\n• Show [lead name]");
+    // Default response
+    addBotMessage("I can help you manage leads! Try:\n• Show all leads\n• Add new lead John Smith, phone 03001234567, budget 45000, Honda Civic");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -186,7 +164,6 @@ Email: ${leadMatch.email}
 
   return (
     <>
-      {/* Floating Button */}
       <button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-full flex items-center justify-center shadow-2xl z-[100] hover:scale-110 transition-all active:scale-95"
@@ -194,10 +171,8 @@ Email: ${leadMatch.email}
         <Bot size={28} />
       </button>
 
-      {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-[380px] h-[520px] bg-white dark:bg-gray-900 shadow-2xl rounded-3xl flex flex-col overflow-hidden z-[110]">
-          {/* Header */}
+        <div className="fixed bottom-24 right-6 w-[380px] h-[520px] bg-white shadow-2xl rounded-3xl flex flex-col overflow-hidden z-[110]">
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 flex items-center justify-between rounded-t-3xl">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-white/20 rounded-2xl flex items-center justify-center text-2xl">👋</div>
@@ -211,14 +186,11 @@ Email: ${leadMatch.email}
             </button>
           </div>
 
-          {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-950">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}>
                 <div className={`max-w-[80%] px-5 py-3.5 rounded-3xl text-[15px] leading-relaxed ${
-                  msg.isBot 
-                    ? 'bg-white border shadow-sm text-gray-900 rounded-tl-none' 
-                    : 'bg-blue-600 text-white rounded-tr-none'
+                  msg.isBot ? 'bg-white border shadow-sm rounded-tl-none' : 'bg-blue-600 text-white rounded-tr-none'
                 }`}>
                   {msg.text}
                 </div>
@@ -237,7 +209,6 @@ Email: ${leadMatch.email}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
           <div className="p-4 border-t bg-white">
             <div className="flex gap-2">
               <input
@@ -246,13 +217,13 @@ Email: ${leadMatch.email}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask Maya anything about leads..."
-                className="flex-1 px-5 py-3 bg-gray-100 rounded-3xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                placeholder="Talk to Maya naturally..."
+                className="flex-1 px-5 py-3 bg-gray-100 rounded-3xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button
                 onClick={handleSend}
                 disabled={!inputValue.trim()}
-                className="w-12 h-12 bg-blue-600 disabled:bg-gray-400 text-white rounded-3xl flex items-center justify-center hover:bg-blue-700 transition-colors"
+                className="w-12 h-12 bg-blue-600 disabled:bg-gray-400 text-white rounded-3xl flex items-center justify-center hover:bg-blue-700"
               >
                 <Send size={22} />
               </button>
