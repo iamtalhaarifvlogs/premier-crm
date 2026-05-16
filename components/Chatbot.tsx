@@ -14,16 +14,16 @@ interface Message {
 }
 
 export default function Chatbot() {
-  // Safe guard - if outside provider, don't crash
-  let crmContext;
+  // Safe guard - prevent crash if outside provider
+  let crmData: any = null;
   try {
-    crmContext = useCRM();
-  } catch {
-    crmContext = null;
+    crmData = useCRM();
+  } catch (e) {
+    // Outside provider - use empty fallback
+    crmData = { leads: [], setLeads: () => {} };
   }
 
-  const leads = crmContext?.leads || [];
-  const setLeads = crmContext?.setLeads || (() => {});
+  const { leads, setLeads } = crmData;
 
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -67,7 +67,6 @@ export default function Chatbot() {
   };
 
   const parseLeadCreation = (text: string): Partial<Lead> => {
-    const lower = text.toLowerCase();
     const data: Partial<Lead> = {};
 
     const nameMatch = text.match(/([A-Z][a-z]+(?:\s[A-Z][a-z]+)+)/);
@@ -122,11 +121,11 @@ export default function Chatbot() {
       return;
     }
 
-    // Smart one-shot lead creation
+    // Smart lead creation
     if (lower.includes("add lead") || lower.includes("new lead") || lower.includes("create lead")) {
       const parsed = parseLeadCreation(text);
 
-      if (Object.keys(parsed).length >= 2) {   // Enough info
+      if (Object.keys(parsed).length >= 2) {
         const newLead: Lead = {
           id: `lead-${Date.now()}`,
           name: parsed.name || "Unknown Customer",
@@ -149,13 +148,12 @@ export default function Chatbot() {
 
         await createWorkflowLog(newLead.id, "Lead Created", `Maya created: ${newLead.name}`, "success");
 
-        addBotMessage(`✅ Lead created!\n\n**${newLead.name}** added to New Lead stage.`);
+        addBotMessage(`✅ Lead created!\n\n**${newLead.name}** has been added to New Lead stage.`);
         return;
       }
     }
 
-    // Default response
-    addBotMessage("I can help you manage leads! Try:\n• Show all leads\n• Add new lead John Smith, phone 03001234567, budget 45000, Honda Civic");
+    addBotMessage("I can help you with leads! Try:\n• Show all leads\n• Add new lead John Smith, phone 03001234567, budget 45000, Honda Civic");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
