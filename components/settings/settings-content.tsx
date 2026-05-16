@@ -21,11 +21,19 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { toast } from "sonner"
 
 export function SettingsContent() {
   const { settings, updateSettings, resetDemoData } = useCRM()
   const [hasChanges, setHasChanges] = React.useState(false)
+  const [notification, setNotification] = React.useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  // Auto-hide notification
+  React.useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [notification])
 
   const handleSettingChange = (key: keyof typeof settings, value: boolean) => {
     updateSettings({ [key]: value })
@@ -34,16 +42,27 @@ export function SettingsContent() {
 
   const handleSaveSettings = () => {
     setHasChanges(false)
-    toast.success("Settings saved successfully!")
+    setNotification({ message: "Settings saved successfully!", type: 'success' })
   }
 
   const handleResetDemo = () => {
     resetDemoData()
-    toast.success("Demo data has been reset!")
+    setNotification({ message: "✅ Demo data has been reset successfully!", type: 'success' })
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6 relative">
+      {/* Notification */}
+      {notification && (
+        <div className={`fixed top-6 right-6 z-50 px-6 py-3.5 rounded-xl shadow-xl text-sm font-medium flex items-center gap-3 transition-all duration-300 ${
+          notification.type === 'success' 
+            ? 'bg-green-600 text-white' 
+            : 'bg-red-600 text-white'
+        }`}>
+          {notification.message}
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
@@ -124,8 +143,7 @@ export function SettingsContent() {
                 checked={settings.killSwitch}
                 onCheckedChange={(checked) => handleSettingChange("killSwitch", checked)}
                 className={cn(
-                  settings.killSwitch &&
-                    "data-[state=checked]:bg-destructive"
+                  settings.killSwitch && "data-[state=checked]:bg-destructive"
                 )}
               />
             </div>
