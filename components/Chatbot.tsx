@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, X, Bot } from 'lucide-react';
-import { Lead, createWorkflowLog } from '@/lib/mock-data';
+import { Lead } from '@/lib/mock-data';
 
 interface Message {
   id: string;
@@ -29,11 +29,7 @@ export default function Chatbot() {
     if (isOpen) {
       fetch('/api/leads')
         .then(res => res.json())
-        .then(data => {
-          const loaded = Array.isArray(data) ? data : [];
-          setLeads(loaded);
-          console.log("Maya loaded", loaded.length, "leads");
-        })
+        .then(data => setLeads(Array.isArray(data) ? data : []))
         .catch(() => setLeads([]));
     }
   }, [isOpen]);
@@ -43,7 +39,7 @@ export default function Chatbot() {
     if (isOpen && messages.length === 0) {
       setMessages([{
         id: 'welcome',
-        text: "Hi! I'm Maya.\n\nTry these:\n• Show all leads\n• Show Talha\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic",
+        text: "Hi! I'm Maya.\n\nJust talk naturally. Try:\n• Show all leads\n• Tell me about Talha\n• Show me Sarah\n• Details on Ryan",
         isBot: true,
         timestamp: new Date()
       }]);
@@ -61,8 +57,11 @@ export default function Chatbot() {
   };
 
   const findLeadByName = (name: string): Lead | undefined => {
-    const lower = name.toLowerCase();
-    return leads.find(l => l.name.toLowerCase().includes(lower));
+    const lower = name.toLowerCase().trim();
+    return leads.find(l => 
+      l.name.toLowerCase().includes(lower) || 
+      lower.includes(l.name.toLowerCase())
+    );
   };
 
   const handleSend = async () => {
@@ -89,42 +88,51 @@ export default function Chatbot() {
   const processUserMessage = async (text: string) => {
     const lower = text.toLowerCase();
 
-    // Show all leads
-    if (lower.includes("all leads") || lower.includes("show leads") || lower.includes("list leads")) {
+    // ==================== SHOW ALL LEADS ====================
+    if (
+      lower.includes("all leads") ||
+      lower.includes("show leads") ||
+      lower.includes("list leads") ||
+      lower.includes("show me all")
+    ) {
       if (leads.length === 0) {
         addBotMessage("No leads found yet.");
         return;
       }
-      const list = leads.map(l => 
-        `• \( {l.name} ( \){l.stage}) - ${l.preferredVehicle || 'N/A'} - \[ {l.budget}`
-      ).join('\n');
+      const list = leads
+        .map(l => `• \( {l.name} ( \){l.stage}) - ${l.preferredVehicle || 'N/A'} - \[ {l.budget}`)
+        .join('\n');
       addBotMessage(`Here are all current leads:\n\n${list}`);
       return;
     }
 
-    // Show specific lead
+    // ==================== SHOW SPECIFIC LEAD ====================
     const lead = findLeadByName(text);
     if (lead) {
+      const depositStatus = lead.statuses.includes("deposit_paid") 
+        ? "✅ Deposit Paid" 
+        : lead.stage === "deposit_requested" 
+          ? "⏳ Deposit Requested" 
+          : "No deposit yet";
+
       const details = `
 **${lead.name}**
+
 Stage: ${lead.stage}
-Budget: \]{lead.budget}
-Vehicle: ${lead.preferredVehicle || 'Not specified'}
+Preferred Vehicle: ${lead.preferredVehicle || 'Not specified'}
+Budget: \]{lead.budget.toLocaleString()}
 Phone: ${lead.phone}
 Email: ${lead.email}
-Status: ${lead.statuses.join(', ') || 'None'}
+Deposit: ${depositStatus}
+Last Activity: ${lead.lastActivity}
       `.trim();
+
       addBotMessage(details);
       return;
     }
 
-    // Add new lead (basic)
-    if (lower.includes("add lead") || lower.includes("new lead") || lower.includes("create lead")) {
-      addBotMessage("For now, please use the 'Add New Lead' button on the dashboard. I'm still learning full conversation mode.");
-      return;
-    }
-
-    addBotMessage("Try these:\n• Show all leads\n• Show Talha\n• Add new lead (use dashboard for now)");
+    // Fallback (only for commands we are not handling yet)
+    addBotMessage("I can help you with leads! Try:\n• Show all leads\n• Tell me about Talha\n• Show me Sarah\n• Details on Ryan");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
