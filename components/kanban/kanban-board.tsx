@@ -11,7 +11,6 @@ import {
   useSensors,
   DragStartEvent,
   DragEndEvent,
-  DragOverEvent,
 } from "@dnd-kit/core"
 import {
   SortableContext,
@@ -64,19 +63,11 @@ export function KanbanBoard() {
   const [activeId, setActiveId] = React.useState<string | null>(null)
   const [isAddLeadOpen, setIsAddLeadOpen] = React.useState(false)
 
-  // Load leads from API on mount
+  // Load leads on mount
   React.useEffect(() => {
-    async function loadInitialData() {
-      if (leads.length === 0) {
-        try {
-          const freshLeads = await getLeads()
-          setLeads(freshLeads)
-        } catch (err) {
-          console.error("Failed to load leads:", err)
-        }
-      }
+    if (leads.length === 0) {
+      getLeads().then(setLeads).catch(console.error)
     }
-    loadInitialData()
   }, [leads.length, setLeads])
 
   const sensors = useSensors(
@@ -146,7 +137,7 @@ export function KanbanBoard() {
     setIsDetailsPanelOpen(true)
   }
 
-  // ====================== ADD NEW LEAD WITH REAL API ======================
+  // ====================== ADD LEAD WITH FULL DEBUG ======================
   const handleAddLead = async (data: { 
     name: string; 
     phone: string; 
@@ -176,44 +167,55 @@ export function KanbanBoard() {
 
     // Try to save to AWS
     try {
+      console.log("Sending POST to AWS...")
+
+      const payload = {
+        TableName: "tbl_leads",
+        Item: {
+          lead_id: newLeadId,
+          name: newLead.name,
+          phone: newLead.phone,
+          email: newLead.email,
+          budget: newLead.budget,
+          preferredVehicle: newLead.preferredVehicle,
+          stage: newLead.stage,
+          statuses: newLead.statuses,
+          assignedRep: newLead.assignedRep,
+          lastActivity: newLead.lastActivity,
+          downPayment: newLead.downPayment,
+          location: newLead.location,
+          creditStatus: newLead.creditStatus,
+          timeline: newLead.timeline,
+          createdAt: newLead.createdAt,
+        }
+      }
+
+      console.log("Payload:", JSON.stringify(payload, null, 2))
+
       const response = await fetch(
         "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            TableName: "tbl_leads",
-            Item: {
-              lead_id: newLeadId,
-              name: newLead.name,
-              phone: newLead.phone,
-              email: newLead.email,
-              budget: newLead.budget,
-              preferredVehicle: newLead.preferredVehicle,
-              stage: newLead.stage,
-              statuses: newLead.statuses,
-              assignedRep: newLead.assignedRep,
-              lastActivity: newLead.lastActivity,
-              downPayment: newLead.downPayment,
-              location: newLead.location,
-              creditStatus: newLead.creditStatus,
-              timeline: newLead.timeline,
-              createdAt: newLead.createdAt,
-            },
-          }),
+          body: JSON.stringify(payload),
         }
       )
 
+      const responseText = await response.text()
+      console.log("AWS Status:", response.status)
+      console.log("AWS Response:", responseText)
+
       if (response.ok) {
-        console.log("Lead saved to AWS successfully")
+        alert("✅ Lead successfully saved to database!")
       } else {
-        console.warn("AWS POST failed, but lead added locally")
+        alert(`❌ Failed to save to database.\nStatus: \( {response.status}\n\n \){responseText}`)
       }
-    } catch (err) {
-      console.error("POST request failed:", err)
+    } catch (err: any) {
+      console.error("POST Failed:", err)
+      alert(`❌ Network error while saving lead.\n${err.message}`)
     }
 
-    // Always add to UI immediately
+    // Always add to UI
     setLeads((prev) => [newLead, ...prev])
     setIsAddLeadOpen(false)
   }
@@ -270,7 +272,7 @@ export function KanbanBoard() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Lead</DialogTitle>
-              <DialogDescription>Will be saved to the database and appear in New Lead column.</DialogDescription>
+              <DialogDescription>Will be saved to the database.</DialogDescription>
             </DialogHeader>
             <AddLeadForm onSubmit={handleAddLead} onCancel={() => setIsAddLeadOpen(false)} />
           </DialogContent>
@@ -309,7 +311,7 @@ export function KanbanBoard() {
   )
 }
 
-// AddLeadForm (unchanged)
+// AddLeadForm remains the same
 function AddLeadForm({
   onSubmit,
   onCancel,
