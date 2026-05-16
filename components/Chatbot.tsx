@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, MessageCircle, Bot } from 'lucide-react';
-
+import { Send, X, Bot } from 'lucide-react';
 import { Lead, createWorkflowLog } from '@/lib/mock-data';
 
 interface Message {
@@ -17,9 +16,7 @@ export default function Chatbot() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-
-  const [currentAction, setCurrentAction] = useState<'none' | 'create-lead'>('none');
-  const [tempLeadData, setTempLeadData] = useState<Partial<Lead>>({});
+  const [leads, setLeads] = useState<Lead[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -27,16 +24,19 @@ export default function Chatbot() {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
+  // Load real leads
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    fetch('/api/leads')
+      .then(res => res.json())
+      .then(data => setLeads(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
 
-  // Welcome message
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       setMessages([{
         id: 'welcome',
-        text: "Hi! I'm Maya, your Premier Auto Plus AI Assistant.\n\nI can show leads, create new ones, update or delete them.\n\nJust talk naturally!",
+        text: "Hi! I'm Maya, your Premier Auto Plus AI Assistant.\n\nTry:\n• Show all leads\n• Add new lead John Smith, phone 03001234567, budget 45000, Honda Civic",
         isBot: true,
         timestamp: new Date()
       }]);
@@ -44,13 +44,12 @@ export default function Chatbot() {
   }, [isOpen]);
 
   const addBotMessage = (text: string) => {
-    const botMsg: Message = {
+    setMessages(prev => [...prev, {
       id: Date.now().toString(),
       text,
       isBot: true,
       timestamp: new Date()
-    };
-    setMessages(prev => [...prev, botMsg]);
+    }]);
     scrollToBottom();
   };
 
@@ -78,32 +77,39 @@ export default function Chatbot() {
   const handleSend = async () => {
     if (!inputValue.trim()) return;
 
+    const userText = inputValue.trim();
     const userMsg: Message = {
       id: Date.now().toString(),
-      text: inputValue.trim(),
+      text: userText,
       isBot: false,
       timestamp: new Date()
     };
 
     setMessages(prev => [...prev, userMsg]);
-    const userText = inputValue.trim();
     setInputValue('');
     setIsTyping(true);
 
     setTimeout(async () => {
       await processUserMessage(userText);
       setIsTyping(false);
-    }, 650);
+    }, 700);
   };
 
   const processUserMessage = async (text: string) => {
     const lower = text.toLowerCase();
 
+    // Show all leads
     if (lower.includes("all leads") || lower.includes("show leads") || lower.includes("list leads")) {
-      addBotMessage("I'm sorry, I currently can't access the full list of leads in this mode.\n\nPlease use the main dashboard for that.");
+      if (leads.length === 0) {
+        addBotMessage("No leads found yet.");
+        return;
+      }
+      const list = leads.map(l => `• \( {l.name} ( \){l.stage}) - ${l.preferredVehicle} - $${l.budget}`).join('\n');
+      addBotMessage(`Here are all current leads:\n\n${list}`);
       return;
     }
 
+    // Smart lead creation
     if (lower.includes("add lead") || lower.includes("new lead") || lower.includes("create lead")) {
       const parsed = parseLeadCreation(text);
 
@@ -126,15 +132,29 @@ export default function Chatbot() {
           createdAt: new Date().toISOString(),
         };
 
-        // Note: Since we can't access setLeads here safely, we'll just simulate
-        addBotMessage(`✅ Lead created!\n\n**${newLead.name}** has been added to New Lead stage.\n\n(Full integration will be available once context is fixed)`);
+        // Add to UI
+        setLeads(prev => [newLead, ...prev]);
+
+        // Save to database
+        try {
+          await fetch('/api/leads', {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              TableName: "tbl_leads",
+              Item: { ...newLead, lead_id: newLead.id }
+            }),
+          });
+        } catch (e) {}
 
         await createWorkflowLog(newLead.id, "Lead Created", `Maya created: ${newLead.name}`, "success");
+
+        addBotMessage(`✅ Lead created successfully!\n\n**${newLead.name}** has been added to New Lead stage.`);
         return;
       }
     }
 
-    addBotMessage("I can help you with leads! Try saying:\n• Add new lead John Smith, phone 03001234567, budget 45000, Honda Civic");
+    addBotMessage("I'm here to help! Try:\n• Show all leads\n• Add new lead John Smith, phone 03001234567, budget 45000, Honda Civic");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
