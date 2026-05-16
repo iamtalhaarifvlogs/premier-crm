@@ -28,6 +28,7 @@ import {
   getStatusColor,
   getStatusLabel,
   formatCurrency,
+  getLeads,
 } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -62,6 +63,21 @@ export function KanbanBoard() {
   const [activeFilter, setActiveFilter] = React.useState<FilterType>("all")
   const [activeId, setActiveId] = React.useState<string | null>(null)
   const [isAddLeadOpen, setIsAddLeadOpen] = React.useState(false)
+
+  // Load leads from API on mount
+  React.useEffect(() => {
+    async function loadInitialData() {
+      if (leads.length === 0) {
+        try {
+          const freshLeads = await getLeads()
+          setLeads(freshLeads)
+        } catch (err) {
+          console.error("Failed to load leads:", err)
+        }
+      }
+    }
+    loadInitialData()
+  }, [leads.length, setLeads])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -130,7 +146,7 @@ export function KanbanBoard() {
     setIsDetailsPanelOpen(true)
   }
 
-  // ====================== REAL ADD LEAD TO DATABASE ======================
+  // ====================== ADD NEW LEAD WITH REAL API ======================
   const handleAddLead = async (data: { 
     name: string; 
     phone: string; 
@@ -158,6 +174,7 @@ export function KanbanBoard() {
       createdAt: new Date().toISOString(),
     }
 
+    // Try to save to AWS
     try {
       const response = await fetch(
         "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data",
@@ -188,15 +205,15 @@ export function KanbanBoard() {
       )
 
       if (response.ok) {
-        console.log("✅ Lead saved to AWS successfully")
+        console.log("Lead saved to AWS successfully")
       } else {
-        console.warn("⚠️ Lead not saved to DB but added locally")
+        console.warn("AWS POST failed, but lead added locally")
       }
     } catch (err) {
-      console.error("POST failed:", err)
+      console.error("POST request failed:", err)
     }
 
-    // Always add to UI
+    // Always add to UI immediately
     setLeads((prev) => [newLead, ...prev])
     setIsAddLeadOpen(false)
   }
@@ -253,7 +270,7 @@ export function KanbanBoard() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Lead</DialogTitle>
-              <DialogDescription>Will be saved to the database.</DialogDescription>
+              <DialogDescription>Will be saved to the database and appear in New Lead column.</DialogDescription>
             </DialogHeader>
             <AddLeadForm onSubmit={handleAddLead} onCancel={() => setIsAddLeadOpen(false)} />
           </DialogContent>
@@ -292,7 +309,7 @@ export function KanbanBoard() {
   )
 }
 
-// Keep your existing AddLeadForm
+// AddLeadForm (unchanged)
 function AddLeadForm({
   onSubmit,
   onCancel,
