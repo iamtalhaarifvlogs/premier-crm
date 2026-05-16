@@ -1,7 +1,6 @@
 import { CRMProvider } from "@/lib/crm-context"
 import { AppShell } from "@/components/app-shell"
 import { LeadDetailsPanel } from "@/components/lead-details/lead-details-panel"
-import { Toaster } from "sonner"
 
 export default function CRMLayout({
   children,
@@ -14,7 +13,6 @@ export default function CRMLayout({
         {children}
         <LeadDetailsPanel />
       </AppShell>
-      <Toaster position="bottom-right" />
     </CRMProvider>
   )
 }
