@@ -24,17 +24,16 @@ export default function Chatbot() {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
-  // Fresh fetch every time
   const fetchLeads = async () => {
     try {
       const res = await fetch('/api/leads', { cache: 'no-store' });
       const data = await res.json();
       const loaded = Array.isArray(data) ? data : [];
-      console.log('✅ Maya fetched', loaded.length, 'leads →', loaded); // Debug
       setLeads(loaded);
+      console.log("Maya fetched leads:", loaded); // Check browser console
       return loaded;
     } catch (err) {
-      console.error('Maya fetch failed:', err);
+      console.error("Fetch error:", err);
       return [];
     }
   };
@@ -43,7 +42,6 @@ export default function Chatbot() {
     if (isOpen) fetchLeads();
   }, [isOpen]);
 
-  // Welcome
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       setMessages([{
@@ -86,51 +84,38 @@ export default function Chatbot() {
 
   const processUserMessage = async (text: string) => {
     const lower = text.toLowerCase();
-
     const freshLeads = await fetchLeads();
 
-    // Show all leads
     if (lower.includes("all leads") || lower.includes("show leads") || lower.includes("list leads")) {
       if (freshLeads.length === 0) {
-        addBotMessage("No leads found in the database yet.");
+        addBotMessage("No leads found.");
         return;
       }
 
-      const list = freshLeads
-        .map(l => `• \( {l.name || 'Unknown'} ( \){l.stage || 'new_lead'}) — ${l.preferredVehicle || 'N/A'} — \[ {l.budget || 0}`)
-        .join('\n');
+      const list = freshLeads.map(l => 
+        `• \( {l.name || 'Unknown'} ( \){l.stage || 'new_lead'}) — ${l.preferredVehicle || 'N/A'} — \[ {l.budget || 0}`
+      ).join('\n');
 
       addBotMessage(`Here are all current leads:\n\n${list}`);
       return;
     }
 
-    // Show specific lead
     const lead = findLeadByName(text);
     if (lead) {
-      const hasDeposit = lead.statuses?.includes("deposit_paid") || false;
-      const depositText = hasDeposit 
-        ? "✅ Deposit Paid" 
-        : lead.stage === "deposit_requested" 
-          ? "⏳ Deposit Requested" 
-          : "No deposit yet";
-
       const details = `
-**${lead.name || 'Unknown'}**
+**${lead.name}**
 
-**Stage:** ${lead.stage || 'new_lead'}
-**Preferred Vehicle:** ${lead.preferredVehicle || 'Not specified'}
-**Budget:** \]{(lead.budget || 0).toLocaleString()}
-**Phone:** ${lead.phone || '—'}
-**Email:** ${lead.email || '—'}
-**Deposit:** ${depositText}
-**Last Activity:** ${lead.lastActivity || '—'}
+Stage: ${lead.stage}
+Vehicle: ${lead.preferredVehicle || 'Not specified'}
+Budget: \]{lead.budget}
+Phone: ${lead.phone || '—'}
+Email: ${lead.email || '—'}
       `.trim();
-
       addBotMessage(details);
       return;
     }
 
-    addBotMessage("I couldn't find that lead.\n\nTry:\n• Show all leads\n• Tell me about [Lead Name]");
+    addBotMessage("Try:\n• Show all leads\n• Tell me about [Name]");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -139,67 +124,43 @@ export default function Chatbot() {
 
   return (
     <>
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-full flex items-center justify-center shadow-2xl z-[100] hover:scale-110 transition-all active:scale-95"
-      >
+      <button onClick={() => setIsOpen(true)} className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-xl z-50 hover:scale-110">
         <Bot size={28} />
       </button>
 
       {isOpen && (
-        <div className="fixed bottom-20 right-4 md:right-6 w-[92%] md:w-[380px] h-[520px] bg-white shadow-2xl rounded-3xl flex flex-col overflow-hidden z-[110]">
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 flex items-center justify-between rounded-t-3xl">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-white/20 rounded-2xl flex items-center justify-center text-2xl">👋</div>
-              <div>
-                <p className="font-semibold">Maya</p>
-                <p className="text-xs opacity-90">Live • Real-time</p>
-              </div>
-            </div>
-            <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/20 rounded-2xl">
-              <X size={24} />
-            </button>
+        <div className="fixed bottom-20 right-6 w-[380px] h-[520px] bg-white shadow-2xl rounded-3xl flex flex-col z-50 overflow-hidden">
+          {/* Header */}
+          <div className="bg-blue-600 text-white p-4 flex justify-between">
+            <div className="font-semibold">Maya • Live</div>
+            <button onClick={() => setIsOpen(false)}><X size={22} /></button>
           </div>
 
+          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-            {messages.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}>
-                <div className={`max-w-[85%] px-5 py-3.5 rounded-3xl text-[15px] leading-relaxed whitespace-pre-wrap ${
-                  msg.isBot ? 'bg-white border shadow-sm rounded-tl-none' : 'bg-blue-600 text-white rounded-tr-none'
-                }`}>
+            {messages.map(msg => (
+              <div key={msg.id} className={`flex ${msg.isBot ? '' : 'justify-end'}`}>
+                <div className={`max-w-[85%] px-4 py-3 rounded-2xl ${msg.isBot ? 'bg-white border' : 'bg-blue-600 text-white'}`}>
                   {msg.text}
                 </div>
               </div>
             ))}
-
-            {isTyping && (
-              <div className="flex justify-start">
-                <div className="bg-white px-5 py-3 rounded-3xl rounded-tl-none flex gap-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-300"></div>
-                </div>
-              </div>
-            )}
+            {isTyping && <div className="text-gray-400">Maya is typing...</div>}
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="p-4 border-t bg-white">
+          {/* Input */}
+          <div className="p-4 border-t">
             <div className="flex gap-2">
               <input
-                type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Talk to Maya naturally..."
-                className="flex-1 px-5 py-3 bg-gray-100 rounded-3xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                placeholder="Talk to Maya..."
+                className="flex-1 px-4 py-3 bg-gray-100 rounded-full focus:outline-none"
               />
-              <button
-                onClick={handleSend}
-                disabled={!inputValue.trim() || isTyping}
-                className="w-12 h-12 bg-blue-600 disabled:bg-gray-400 text-white rounded-3xl flex items-center justify-center hover:bg-blue-700"
-              >
-                <Send size={22} />
+              <button onClick={handleSend} className="bg-blue-600 text-white px-5 rounded-full">
+                <Send size={20} />
               </button>
             </div>
           </div>
