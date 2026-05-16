@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const AWS_API = "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data";
 
-// Create Lead
+// Create
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Update Lead
+// Update
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
@@ -41,7 +41,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// Delete Lead
+// Delete - Multiple payload formats to handle different Lambda expectations
 export async function DELETE(request: NextRequest) {
   try {
     const { lead_id } = await request.json();
@@ -50,26 +50,50 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: "lead_id is required" }, { status: 400 });
     }
 
-    const response = await fetch(AWS_API, {
-      method: "POST",   // Most Lambda functions use POST for all operations
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    console.log("Attempting to delete lead:", lead_id);
+
+    // Try multiple common payload formats
+    const payloads = [
+      // Format 1: Standard with Key
+      {
         TableName: "tbl_leads",
-        Key: { lead_id },
-        Operation: "delete"   // Optional flag for your Lambda
-      }),
-    });
+        Key: { lead_id: lead_id }
+      },
+      // Format 2: With Operation flag
+      {
+        TableName: "tbl_leads",
+        Key: { lead_id: lead_id },
+        Operation: "delete"
+      },
+      // Format 3: Simple Item style (some Lambdas expect this)
+      {
+        TableName: "tbl_leads",
+        Item: { lead_id: lead_id }
+      }
+    ];
 
-    const text = await response.text();
-    console.log("Delete Response:", response.status, text);
+    for (let i = 0; i < payloads.length; i++) {
+      const payload = payloads[i];
+      console.log(`Trying payload format ${i+1}:`, payload);
 
-    if (response.ok) {
-      return NextResponse.json({ success: true });
-    } else {
-      return NextResponse.json({ success: false, error: text }, { status: response.status });
+      const response = await fetch(AWS_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const text = await response.text();
+      console.log(`Format ${i+1} Response: ${response.status} - ${text}`);
+
+      if (response.ok) {
+        return NextResponse.json({ success: true });
+      }
     }
+
+    return NextResponse.json({ success: false, error: "All delete formats failed" }, { status: 400 });
+
   } catch (error: any) {
-    console.error("DELETE Error:", error);
+    console.error("DELETE Proxy Error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
