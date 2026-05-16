@@ -43,7 +43,7 @@ export default function Chatbot() {
     if (isOpen && messages.length === 0) {
       setMessages([{
         id: 'welcome',
-        text: "Hi! I'm Maya.\n\nJust talk naturally. Examples:\n• Show all leads\n• Show Sarah\n• Update Talha stage to deposit_paid\n• Delete Ryan\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic",
+        text: "Hi! I'm Maya.\n\nJust talk naturally. Examples:\n• Show all leads\n• Show Sarah\n• Update Talha\n• Delete Ryan\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic",
         isBot: true,
         timestamp: new Date()
       }]);
@@ -61,10 +61,10 @@ export default function Chatbot() {
   };
 
   const findLeadByName = (name: string): Lead | undefined => {
-    const lowerName = name.toLowerCase();
+    const lower = name.toLowerCase();
     return leads.find(l => 
-      l.name.toLowerCase().includes(lowerName) || 
-      lowerName.includes(l.name.toLowerCase())
+      l.name.toLowerCase().includes(lower) || 
+      lower.includes(l.name.toLowerCase())
     );
   };
 
@@ -125,7 +125,7 @@ Status: ${lead.statuses.join(', ') || 'None'}
       if (lead) {
         setTargetLead(lead);
         setCurrentAction('update-lead');
-        addBotMessage(`Found **${lead.name}**. What do you want to update? (stage, budget, vehicle, status, name, phone, email)`);
+        addBotMessage(`Found **${lead.name}**.\n\nWhat would you like to update? (stage, budget, vehicle, status, name, phone, email)`);
         return;
       }
     }
@@ -141,14 +141,6 @@ Status: ${lead.statuses.join(', ') || 'None'}
       }
     }
 
-    // Handle update continuation
-    if (currentAction === 'update-lead' && targetLead) {
-      // This is simplified - for full update we'd need more multi-turn logic
-      addBotMessage("Update functionality is being enhanced. For now, please use the main interface to edit leads.");
-      setCurrentAction('none');
-      return;
-    }
-
     // Handle delete confirmation
     if (currentAction === 'delete-lead' && targetLead) {
       if (lower === "yes" || lower === "confirm" || lower === "delete") {
@@ -161,7 +153,7 @@ Status: ${lead.statuses.join(', ') || 'None'}
 
           if (response.ok) {
             setLeads(prev => prev.filter(l => l.id !== targetLead.id));
-            addBotMessage(`✅ **${targetLead.name}** has been deleted.`);
+            addBotMessage(`✅ **${targetLead.name}** has been deleted from the database.`);
             await createWorkflowLog(targetLead.id, "Lead Deleted", `Maya deleted ${targetLead.name}`, "success");
           } else {
             addBotMessage("❌ Failed to delete lead.");
@@ -174,6 +166,13 @@ Status: ${lead.statuses.join(', ') || 'None'}
       }
       setCurrentAction('none');
       setTargetLead(null);
+      return;
+    }
+
+    // Handle update (basic for now)
+    if (currentAction === 'update-lead' && targetLead) {
+      addBotMessage("Update functionality is being enhanced. For now, please use the main interface to edit leads.");
+      setCurrentAction('none');
       return;
     }
 
@@ -215,7 +214,7 @@ Status: ${lead.statuses.join(', ') || 'None'}
 
         await createWorkflowLog(newLead.id, "Lead Created", `Maya created: ${newLead.name}`, "success");
 
-        addBotMessage(`✅ Lead created!\n\n**${newLead.name}**\nVehicle: ${newLead.preferredVehicle}\nBudget: $${newLead.budget}`);
+        addBotMessage(`✅ Lead created successfully!\n\n**${newLead.name}**\nVehicle: ${newLead.preferredVehicle}\nBudget: $${newLead.budget}`);
         return;
       }
     }
