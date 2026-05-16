@@ -230,6 +230,32 @@ export function getStatusLabel(status: LeadStatus): string {
     default: return status
   }
 }
+// Add this at the end of lib/mock-data.ts
+export async function createWorkflowLog(leadId: string, workflowName: string, action: string, status: "success" | "failed" | "skipped" = "success") {
+  try {
+    const logEntry = {
+      TableName: "tbl_workflow_logs",
+      Item: {
+        lead_id: leadId,
+        timestamp: new Date().toISOString(),
+        workflowName,
+        action,
+        status,
+      }
+    };
+
+    const response = await fetch('/api/leads', {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(logEntry),
+    });
+
+    return response.ok;
+  } catch (err) {
+    console.error("Failed to create workflow log:", err);
+    return false;
+  }
+}
 
 /* Mocks for compatibility */
 export const mockLeads: Lead[] = []
