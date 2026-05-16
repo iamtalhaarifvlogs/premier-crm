@@ -1,8 +1,12 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Bot } from 'lucide-react';
-import { Lead, PipelineStage, LeadStatus } from '@/lib/mock-data';
+import { Send, X, Bot, Sparkles } from 'lucide-react';
+import {
+  Lead,
+  PipelineStage,
+  LeadStatus,
+} from '@/lib/mock-data';
 
 interface ChatMessage {
   id: string;
@@ -41,6 +45,63 @@ export default function Chatbot() {
 
   /*
   |--------------------------------------------------------------------------
+  | HELPERS
+  |--------------------------------------------------------------------------
+  */
+
+  const formatMoney = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0,
+    }).format(amount || 0);
+  };
+
+  const formatStage = (stage: string) => {
+    return stage
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+
+  const formatDate = (date: string) => {
+    if (!date) return 'Unknown';
+
+    return new Date(date).toLocaleDateString(
+      'en-US',
+      {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }
+    );
+  };
+
+  const addBotMessage = (text: string) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        text,
+        isBot: true,
+        timestamp: new Date(),
+      },
+    ]);
+  };
+
+  const addUserMessage = (text: string) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        text,
+        isBot: false,
+        timestamp: new Date(),
+      },
+    ]);
+  };
+
+  /*
+  |--------------------------------------------------------------------------
   | FETCH LEADS
   |--------------------------------------------------------------------------
   */
@@ -50,41 +111,22 @@ export default function Chatbot() {
       setLoadingLeads(true);
 
       const response = await fetch('/api/leads', {
-        method: 'GET',
         cache: 'no-store',
       });
 
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
+        throw new Error('Failed to fetch leads');
       }
 
       const data = await response.json();
 
-      console.log('LEADS API RESPONSE:', data);
+      const items = Array.isArray(data?.Items)
+        ? data.Items
+        : Array.isArray(data)
+        ? data
+        : [];
 
-      /*
-      |--------------------------------------------------------------------------
-      | HANDLE DIFFERENT RESPONSE SHAPES
-      |--------------------------------------------------------------------------
-      */
-
-      let items: any[] = [];
-
-      if (Array.isArray(data)) {
-        items = data;
-      } else if (Array.isArray(data.Items)) {
-        items = data.Items;
-      } else {
-        items = [];
-      }
-
-      /*
-      |--------------------------------------------------------------------------
-      | NORMALIZE DATA
-      |--------------------------------------------------------------------------
-      */
-
-      const normalizedLeads: Lead[] = items.map(
+      const normalized: Lead[] = items.map(
         (item: any, index: number) => ({
           id:
             item.id ||
@@ -125,7 +167,7 @@ export default function Chatbot() {
 
           lastActivity:
             item.lastActivity ||
-            'Just now',
+            'Unknown',
 
           downPayment:
             Number(item.downPayment || 0),
@@ -149,22 +191,14 @@ export default function Chatbot() {
         })
       );
 
-      console.log(
-        'NORMALIZED LEADS:',
-        normalizedLeads
-      );
+      setLeads(normalized);
 
-      setLeads(normalizedLeads);
-
-      return normalizedLeads;
+      return normalized;
     } catch (error) {
-      console.error(
-        'Failed to fetch leads:',
-        error
-      );
+      console.error(error);
 
       addBotMessage(
-        'Failed to load leads from API.'
+        'Unable to connect to CRM API.'
       );
 
       return [];
@@ -189,13 +223,19 @@ export default function Chatbot() {
         {
           id: 'welcome',
           text:
-            "Hi! I'm Maya.\n\n" +
-            'You can ask:\n' +
+            "Hey, I'm Maya AI.\n\n" +
+            'I can answer CRM questions naturally.\n\n' +
+            'Try asking:\n\n' +
             '• Show all leads\n' +
-            '• Tell me about Talha\n' +
-            '• Show Sarah Johnson\n' +
             '• Who paid deposit?\n' +
-            '• Show hot leads',
+            '• Highest budget lead\n' +
+            '• Show hot leads\n' +
+            '• Leads in qualification stage\n' +
+            '• Tell me about Talha\n' +
+            '• How many leads do we have?\n' +
+            '• Average budget\n' +
+            '• Leads from Austin\n' +
+            '• Newest lead',
           isBot: true,
           timestamp: new Date(),
         },
@@ -205,75 +245,43 @@ export default function Chatbot() {
 
   /*
   |--------------------------------------------------------------------------
-  | ADD BOT MESSAGE
-  |--------------------------------------------------------------------------
-  */
-
-  const addBotMessage = (text: string) => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        text,
-        isBot: true,
-        timestamp: new Date(),
-      },
-    ]);
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | ADD USER MESSAGE
-  |--------------------------------------------------------------------------
-  */
-
-  const addUserMessage = (text: string) => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        text,
-        isBot: false,
-        timestamp: new Date(),
-      },
-    ]);
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | FORMATTERS
-  |--------------------------------------------------------------------------
-  */
-
-  const formatMoney = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const formatStage = (stage: string) => {
-    return stage
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | PROCESS USER MESSAGE
+  | INTELLIGENCE ENGINE
   |--------------------------------------------------------------------------
   */
 
   const processUserMessage = async (
-    text: string
+    input: string
   ) => {
-    const lower = text.toLowerCase();
+    const query = input.toLowerCase().trim();
 
-    const freshLeads =
+    const crmLeads =
       leads.length > 0
         ? leads
         : await fetchLeads();
+
+    if (crmLeads.length === 0) {
+      addBotMessage(
+        'CRM database is currently empty.'
+      );
+      return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | TOTAL LEADS
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      query.includes('how many') ||
+      query.includes('total leads') ||
+      query.includes('lead count')
+    ) {
+      addBotMessage(
+        `There are currently ${crmLeads.length} leads in the CRM.`
+      );
+      return;
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -282,34 +290,26 @@ export default function Chatbot() {
     */
 
     if (
-      lower.includes('all leads') ||
-      lower.includes('show leads') ||
-      lower.includes('list leads') ||
-      lower === 'list'
+      query.includes('all leads') ||
+      query.includes('show leads') ||
+      query.includes('list leads')
     ) {
-      if (freshLeads.length === 0) {
-        addBotMessage(
-          'No leads found in the CRM.'
-        );
-        return;
-      }
-
-      const list = freshLeads
+      const text = crmLeads
         .map(
-          (lead) =>
-            `• ${lead.name}\n` +
-            `  Vehicle: ${lead.preferredVehicle}\n` +
-            `  Budget: ${formatMoney(
+          (lead, i) =>
+            `${i + 1}. ${lead.name}\n` +
+            `Vehicle: ${lead.preferredVehicle}\n` +
+            `Budget: ${formatMoney(
               lead.budget
             )}\n` +
-            `  Stage: ${formatStage(
+            `Stage: ${formatStage(
               lead.stage
             )}`
         )
         .join('\n\n');
 
       addBotMessage(
-        `Found ${freshLeads.length} leads:\n\n${list}`
+        `Here are all leads:\n\n${text}`
       );
 
       return;
@@ -317,29 +317,30 @@ export default function Chatbot() {
 
     /*
     |--------------------------------------------------------------------------
-    | DEPOSIT PAID LEADS
+    | DEPOSIT PAID
     |--------------------------------------------------------------------------
     */
 
     if (
-      lower.includes('deposit') ||
-      lower.includes('paid')
+      query.includes('deposit') ||
+      query.includes('paid')
     ) {
-      const depositLeads =
-        freshLeads.filter((lead) =>
+      const filtered = crmLeads.filter(
+        (lead) =>
           lead.statuses.includes(
             'deposit_paid'
-          )
-        );
+          ) ||
+          lead.stage === 'deposit_paid'
+      );
 
-      if (depositLeads.length === 0) {
+      if (!filtered.length) {
         addBotMessage(
-          'No leads have paid deposits yet.'
+          'No deposit-paid leads found.'
         );
         return;
       }
 
-      const text = depositLeads
+      const text = filtered
         .map(
           (lead) =>
             `• ${lead.name} — ${lead.preferredVehicle}`
@@ -347,7 +348,7 @@ export default function Chatbot() {
         .join('\n');
 
       addBotMessage(
-        `Deposit paid leads:\n\n${text}`
+        `Deposit-paid leads:\n\n${text}`
       );
 
       return;
@@ -359,25 +360,26 @@ export default function Chatbot() {
     |--------------------------------------------------------------------------
     */
 
-    if (lower.includes('hot')) {
-      const hotLeads = freshLeads.filter(
-        (lead) =>
-          lead.statuses.includes('hot')
+    if (query.includes('hot')) {
+      const hot = crmLeads.filter((lead) =>
+        lead.statuses.includes('hot')
       );
 
-      if (hotLeads.length === 0) {
+      if (!hot.length) {
         addBotMessage(
-          'No hot leads found.'
+          'No hot leads currently.'
         );
         return;
       }
 
-      const text = hotLeads
+      const text = hot
         .map(
           (lead) =>
-            `• ${lead.name} — ${lead.preferredVehicle}`
+            `• ${lead.name}\nBudget: ${formatMoney(
+              lead.budget
+            )}`
         )
-        .join('\n');
+        .join('\n\n');
 
       addBotMessage(
         `Hot leads:\n\n${text}`
@@ -388,41 +390,257 @@ export default function Chatbot() {
 
     /*
     |--------------------------------------------------------------------------
-    | SEARCH LEAD BY NAME
+    | HIGHEST BUDGET
     |--------------------------------------------------------------------------
     */
 
-    const matchedLead = freshLeads.find(
+    if (
+      query.includes('highest budget') ||
+      query.includes('largest budget') ||
+      query.includes('biggest budget')
+    ) {
+      const topLead = [...crmLeads].sort(
+        (a, b) => b.budget - a.budget
+      )[0];
+
+      addBotMessage(
+        `Highest budget lead:\n\n` +
+          `Name: ${topLead.name}\n` +
+          `Budget: ${formatMoney(
+            topLead.budget
+          )}\n` +
+          `Vehicle: ${topLead.preferredVehicle}\n` +
+          `Stage: ${formatStage(
+            topLead.stage
+          )}`
+      );
+
+      return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOWEST BUDGET
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      query.includes('lowest budget') ||
+      query.includes('smallest budget')
+    ) {
+      const lowest = [...crmLeads].sort(
+        (a, b) => a.budget - b.budget
+      )[0];
+
+      addBotMessage(
+        `Lowest budget lead:\n\n` +
+          `Name: ${lowest.name}\n` +
+          `Budget: ${formatMoney(
+            lowest.budget
+          )}`
+      );
+
+      return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | AVERAGE BUDGET
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      query.includes('average budget') ||
+      query.includes('avg budget')
+    ) {
+      const total = crmLeads.reduce(
+        (sum, lead) => sum + lead.budget,
+        0
+      );
+
+      const avg =
+        total / crmLeads.length;
+
+      addBotMessage(
+        `Average lead budget is ${formatMoney(
+          avg
+        )}.`
+      );
+
+      return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | NEWEST LEAD
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      query.includes('newest') ||
+      query.includes('latest lead')
+    ) {
+      const newest = [...crmLeads].sort(
+        (a, b) =>
+          new Date(
+            b.createdAt
+          ).getTime() -
+          new Date(
+            a.createdAt
+          ).getTime()
+      )[0];
+
+      addBotMessage(
+        `Newest lead:\n\n` +
+          `Name: ${newest.name}\n` +
+          `Created: ${formatDate(
+            newest.createdAt
+          )}\n` +
+          `Vehicle: ${newest.preferredVehicle}`
+      );
+
+      return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | STAGE FILTERING
+    |--------------------------------------------------------------------------
+    */
+
+    const stages: PipelineStage[] = [
+      'new_lead',
+      'maya_qualification',
+      'vehicle_sourcing',
+      'alternatives_presented',
+      'deposit_requested',
+      'deposit_paid',
+      'rep_handoff',
+      'closed_won',
+      'closed_lost',
+    ];
+
+    for (const stage of stages) {
+      const readable = stage.replace(
+        /_/g,
+        ' '
+      );
+
+      if (
+        query.includes(readable) ||
+        query.includes(stage)
+      ) {
+        const filtered = crmLeads.filter(
+          (lead) =>
+            lead.stage === stage
+        );
+
+        if (!filtered.length) {
+          addBotMessage(
+            `No leads in ${formatStage(
+              stage
+            )}.`
+          );
+          return;
+        }
+
+        const text = filtered
+          .map(
+            (lead) =>
+              `• ${lead.name} — ${lead.preferredVehicle}`
+          )
+          .join('\n');
+
+        addBotMessage(
+          `${formatStage(
+            stage
+          )} leads:\n\n${text}`
+        );
+
+        return;
+      }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOCATION SEARCH
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      query.includes('from') ||
+      query.includes('in ')
+    ) {
+      const found = crmLeads.filter(
+        (lead) =>
+          lead.location
+            .toLowerCase()
+            .includes(query)
+      );
+
+      if (found.length) {
+        const text = found
+          .map(
+            (lead) =>
+              `• ${lead.name} — ${lead.location}`
+          )
+          .join('\n');
+
+        addBotMessage(
+          `Matching location leads:\n\n${text}`
+        );
+
+        return;
+      }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | NAME SEARCH
+    |--------------------------------------------------------------------------
+    */
+
+    const matchedLead = crmLeads.find(
       (lead) =>
-        lead.name
-          .toLowerCase()
-          .includes(lower)
+        query.includes(
+          lead.name.toLowerCase()
+        )
     );
 
     if (matchedLead) {
-      const details =
-        `Name: ${matchedLead.name}\n\n` +
-        `Vehicle: ${matchedLead.preferredVehicle}\n` +
-        `Budget: ${formatMoney(
-          matchedLead.budget
-        )}\n` +
-        `Stage: ${formatStage(
-          matchedLead.stage
-        )}\n` +
-        `Phone: ${matchedLead.phone || 'N/A'}\n` +
-        `Email: ${matchedLead.email || 'N/A'}\n` +
-        `Location: ${matchedLead.location}\n` +
-        `Timeline: ${matchedLead.timeline}\n` +
-        `Credit: ${matchedLead.creditStatus}\n` +
-        `Deposit Paid: ${
-          matchedLead.statuses.includes(
-            'deposit_paid'
-          )
-            ? 'Yes'
-            : 'No'
-        }`;
-
-      addBotMessage(details);
+      addBotMessage(
+        `Lead Details\n\n` +
+          `Name: ${matchedLead.name}\n` +
+          `Phone: ${
+            matchedLead.phone || 'N/A'
+          }\n` +
+          `Email: ${
+            matchedLead.email || 'N/A'
+          }\n` +
+          `Vehicle: ${matchedLead.preferredVehicle}\n` +
+          `Budget: ${formatMoney(
+            matchedLead.budget
+          )}\n` +
+          `Down Payment: ${formatMoney(
+            matchedLead.downPayment
+          )}\n` +
+          `Stage: ${formatStage(
+            matchedLead.stage
+          )}\n` +
+          `Location: ${matchedLead.location}\n` +
+          `Credit: ${matchedLead.creditStatus}\n` +
+          `Timeline: ${matchedLead.timeline}\n` +
+          `Created: ${formatDate(
+            matchedLead.createdAt
+          )}\n` +
+          `Statuses: ${
+            matchedLead.statuses.length
+              ? matchedLead.statuses.join(
+                  ', '
+                )
+              : 'None'
+          }`
+      );
 
       return;
     }
@@ -434,34 +652,39 @@ export default function Chatbot() {
     */
 
     addBotMessage(
-      "I couldn't find that lead.\n\n" +
-        'Try:\n' +
+      "I couldn't understand that request.\n\n" +
+        'Try asking:\n\n' +
         '• Show all leads\n' +
-        '• Tell me about Talha Arif\n' +
+        '• Who paid deposit?\n' +
+        '• Highest budget lead\n' +
         '• Show hot leads\n' +
-        '• Who paid deposit?'
+        '• Average budget\n' +
+        '• Newest lead\n' +
+        '• Tell me about Sarah Johnson'
     );
   };
 
   /*
   |--------------------------------------------------------------------------
-  | SEND MESSAGE
+  | SEND
   |--------------------------------------------------------------------------
   */
 
   const handleSend = async () => {
     if (!inputValue.trim()) return;
 
-    const userText = inputValue.trim();
+    const userInput = inputValue.trim();
 
-    addUserMessage(userText);
+    addUserMessage(userInput);
 
     setInputValue('');
 
     setIsTyping(true);
 
     setTimeout(async () => {
-      await processUserMessage(userText);
+      await processUserMessage(
+        userInput
+      );
 
       setIsTyping(false);
     }, 700);
@@ -483,18 +706,19 @@ export default function Chatbot() {
       </button>
 
       {isOpen && (
-        <div className="fixed bottom-20 right-4 z-50 flex h-[520px] w-[92%] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl md:right-6 md:w-[380px]">
+        <div className="fixed bottom-20 right-4 z-50 flex h-[560px] w-[92%] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl md:right-6 md:w-[400px]">
           {/* HEADER */}
 
           <div className="flex items-center justify-between bg-blue-600 p-4 text-white">
             <div>
-              <div className="font-semibold">
+              <div className="flex items-center gap-2 text-lg font-semibold">
+                <Sparkles size={18} />
                 Maya AI
               </div>
 
               <div className="text-xs opacity-80">
                 {loadingLeads
-                  ? 'Loading leads...'
+                  ? 'Syncing CRM...'
                   : `${leads.length} leads loaded`}
               </div>
             </div>
@@ -521,7 +745,7 @@ export default function Chatbot() {
                 }`}
               >
                 <div
-                  className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm ${
+                  className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                     message.isBot
                       ? 'border bg-white text-gray-900'
                       : 'bg-blue-600 text-white'
@@ -533,8 +757,8 @@ export default function Chatbot() {
             ))}
 
             {isTyping && (
-              <div className="pl-2 text-sm text-gray-400">
-                Maya is typing...
+              <div className="text-sm text-gray-400">
+                Maya is thinking...
               </div>
             )}
 
@@ -546,7 +770,6 @@ export default function Chatbot() {
           <div className="border-t bg-white p-4">
             <div className="flex gap-2">
               <input
-                type="text"
                 value={inputValue}
                 onChange={(e) =>
                   setInputValue(
@@ -558,7 +781,7 @@ export default function Chatbot() {
                     handleSend();
                   }
                 }}
-                placeholder="Talk to Maya naturally..."
+                placeholder="Ask Maya anything..."
                 className="flex-1 rounded-full bg-gray-100 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
               />
 
