@@ -257,6 +257,7 @@ export async function createWorkflowLog(leadId: string, workflowName: string, ac
   }
 }
 
+
 /* Mocks for compatibility */
 export const mockLeads: Lead[] = []
 export const mockMessages: Record<string, Message[]> = {}
