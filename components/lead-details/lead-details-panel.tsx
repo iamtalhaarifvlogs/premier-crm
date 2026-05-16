@@ -1,10 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { X, Phone, Mail, MapPin, Calendar, DollarSign, CreditCard, Clock, User, Flame, Pause, CheckCircle, Save, Edit2 } from "lucide-react"
+import { X, Save, Edit2, Flame, CheckCircle } from "lucide-react"
 
 import { useCRM } from "@/lib/crm-context"
-import { Lead, PIPELINE_STAGES, formatCurrency, getStatusColor, getStatusLabel } from "@/lib/mock-data"
+import { Lead, PIPELINE_STAGES, getStatusColor, getStatusLabel } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -28,14 +28,6 @@ export function LeadDetailsPanel() {
   const [editedLead, setEditedLead] = React.useState<Lead | null>(null)
   const [notification, setNotification] = React.useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
-  // Auto-hide notification
-  React.useEffect(() => {
-    if (notification) {
-      const timer = setTimeout(() => setNotification(null), 4000)
-      return () => clearTimeout(timer)
-    }
-  }, [notification])
-
   React.useEffect(() => {
     if (selectedLead) {
       setEditedLead({ ...selectedLead })
@@ -43,15 +35,25 @@ export function LeadDetailsPanel() {
     }
   }, [selectedLead])
 
+  // Auto hide notification
+  React.useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [notification])
+
   if (!selectedLead || !editedLead) return null
 
   const handleSave = async () => {
     if (!editedLead) return
 
-    // Update local state immediately
+    // Update local state
     setLeads(prev => prev.map(l => l.id === editedLead.id ? editedLead : l))
 
     try {
+      console.log("Sending UPDATE to API...")
+
       const response = await fetch('/api/leads', {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -77,14 +79,24 @@ export function LeadDetailsPanel() {
         }),
       })
 
+      const result = await response.text()
+      console.log("Update Response Status:", response.status)
+      console.log("Update Response Body:", result)
+
       if (response.ok) {
-        setNotification({ message: "✅ Lead updated and saved to database!", type: 'success' })
+        setNotification({ message: "✅ Lead updated successfully in database!", type: 'success' })
       } else {
-        setNotification({ message: "Lead updated locally (database update failed)", type: 'error' })
+        setNotification({ 
+          message: `❌ Update failed (Status ${response.status})`, 
+          type: 'error' 
+        })
       }
-    } catch (err) {
-      console.error("Update failed:", err)
-      setNotification({ message: "Lead updated locally (database update failed)", type: 'error' })
+    } catch (err: any) {
+      console.error("Update Error:", err)
+      setNotification({ 
+        message: "❌ Failed to update in database. Saved locally only.", 
+        type: 'error' 
+      })
     }
 
     setSelectedLead(editedLead)
@@ -92,16 +104,15 @@ export function LeadDetailsPanel() {
   }
 
   const toggleStatus = (status: "hot" | "automation_paused" | "deposit_paid") => {
-    const currentStatuses = editedLead.statuses
-    const newStatuses = currentStatuses.includes(status)
-      ? currentStatuses.filter(s => s !== status)
-      : [...currentStatuses, status]
-
-    setEditedLead({ ...editedLead, statuses: newStatuses })
+    const current = editedLead.statuses
+    const updated = current.includes(status)
+      ? current.filter(s => s !== status)
+      : [...current, status]
+    setEditedLead({ ...editedLead, statuses: updated })
   }
 
   const updateField = (field: keyof Lead, value: any) => {
-    setEditedLead({ ...editedLead, [field]: value })
+    setEditedLead(prev => prev ? { ...prev, [field]: value } : null)
   }
 
   const handleClose = () => {
@@ -114,24 +125,16 @@ export function LeadDetailsPanel() {
   }
 
   return (
-    <div className={`fixed inset-y-0 right-0 w-96 bg-background border-l shadow-2xl transform transition-transform duration-300 z-50 ${isDetailsPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+    <div className={`fixed inset-y-0 right-0 w-96 bg-background border-l shadow-2xl z-50 transform transition-transform duration-300 ${isDetailsPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
       <div className="flex h-full flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between border-b p-4">
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold">{editedLead.name}</h2>
-            {editedLead.statuses.length > 0 && (
-              <Badge variant="outline" className={getStatusColor(editedLead.statuses[0])}>
-                {getStatusLabel(editedLead.statuses[0])}
-              </Badge>
-            )}
+        <div className="border-b p-4 flex items-center justify-between bg-muted/50">
+          <div>
+            <h2 className="font-semibold text-lg">{editedLead.name}</h2>
+            <p className="text-sm text-muted-foreground">{editedLead.preferredVehicle}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setIsEditing(!isEditing)}
-            >
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setIsEditing(!isEditing)}>
               {isEditing ? <Save className="size-4" /> : <Edit2 className="size-4" />}
             </Button>
             <Button variant="ghost" size="sm" onClick={handleClose}>
@@ -149,69 +152,47 @@ export function LeadDetailsPanel() {
           </TabsList>
 
           <ScrollArea className="flex-1">
-            <TabsContent value="overview" className="p-6 m-0">
+            <TabsContent value="overview" className="p-6 m-0 space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex justify-between items-center">
-                    Lead Information
-                    {isEditing && <span className="text-sm text-blue-600 font-medium">Editing Mode</span>}
+                  <CardTitle className="flex items-center justify-between">
+                    Lead Details
+                    {isEditing && <span className="text-blue-600 text-sm font-medium">Editing Mode</span>}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="space-y-5">
+                  {/* Editable Fields */}
+                  <div className="space-y-4">
                     <div>
                       <Label>Name</Label>
-                      <Input 
-                        value={editedLead.name} 
-                        onChange={(e) => updateField("name", e.target.value)}
-                        disabled={!isEditing}
-                      />
+                      <Input value={editedLead.name} onChange={(e) => updateField("name", e.target.value)} disabled={!isEditing} />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label>Phone</Label>
-                        <Input 
-                          value={editedLead.phone} 
-                          onChange={(e) => updateField("phone", e.target.value)}
-                          disabled={!isEditing}
-                        />
+                        <Input value={editedLead.phone} onChange={(e) => updateField("phone", e.target.value)} disabled={!isEditing} />
                       </div>
                       <div>
                         <Label>Email</Label>
-                        <Input 
-                          value={editedLead.email} 
-                          onChange={(e) => updateField("email", e.target.value)}
-                          disabled={!isEditing}
-                        />
+                        <Input value={editedLead.email} onChange={(e) => updateField("email", e.target.value)} disabled={!isEditing} />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label>Budget ($)</Label>
-                        <Input 
-                          type="number"
-                          value={editedLead.budget} 
-                          onChange={(e) => updateField("budget", parseInt(e.target.value) || 0)}
-                          disabled={!isEditing}
-                        />
+                        <Input type="number" value={editedLead.budget} onChange={(e) => updateField("budget", parseInt(e.target.value) || 0)} disabled={!isEditing} />
                       </div>
                       <div>
                         <Label>Stage</Label>
-                        <Select 
-                          value={editedLead.stage} 
-                          onValueChange={(value) => updateField("stage", value as PipelineStage)}
-                          disabled={!isEditing}
-                        >
+                        <Select value={editedLead.stage} onValueChange={(v) => updateField("stage", v)} disabled={!isEditing}>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {PIPELINE_STAGES.map(stage => (
-                              <SelectItem key={stage.id} value={stage.id}>
-                                {stage.name}
-                              </SelectItem>
+                            {PIPELINE_STAGES.map(s => (
+                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -220,43 +201,33 @@ export function LeadDetailsPanel() {
 
                     <div>
                       <Label>Preferred Vehicle</Label>
-                      <Input 
-                        value={editedLead.preferredVehicle} 
-                        onChange={(e) => updateField("preferredVehicle", e.target.value)}
-                        disabled={!isEditing}
-                      />
+                      <Input value={editedLead.preferredVehicle} onChange={(e) => updateField("preferredVehicle", e.target.value)} disabled={!isEditing} />
                     </div>
                   </div>
 
+                  <Separator />
+
                   {/* Status Toggles */}
-                  <div className="pt-4 border-t space-y-4">
-                    <div className="flex items-center justify-between">
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2">
                         <Flame className="size-4 text-orange-500" />
                         <Label>Hot Lead</Label>
                       </div>
-                      <Switch 
-                        checked={editedLead.statuses.includes("hot")} 
-                        onCheckedChange={() => toggleStatus("hot")}
-                        disabled={!isEditing}
-                      />
+                      <Switch checked={editedLead.statuses.includes("hot")} onCheckedChange={() => toggleStatus("hot")} disabled={!isEditing} />
                     </div>
 
-                    <div className="flex items-center justify-between">
+                    <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2">
                         <CheckCircle className="size-4 text-green-500" />
                         <Label>Deposit Paid</Label>
                       </div>
-                      <Switch 
-                        checked={editedLead.statuses.includes("deposit_paid")} 
-                        onCheckedChange={() => toggleStatus("deposit_paid")}
-                        disabled={!isEditing}
-                      />
+                      <Switch checked={editedLead.statuses.includes("deposit_paid")} onCheckedChange={() => toggleStatus("deposit_paid")} disabled={!isEditing} />
                     </div>
                   </div>
 
                   {isEditing && (
-                    <Button onClick={handleSave} className="w-full mt-6">
+                    <Button onClick={handleSave} className="w-full" size="lg">
                       <Save className="mr-2 size-4" />
                       Save Changes
                     </Button>
@@ -279,6 +250,15 @@ export function LeadDetailsPanel() {
           </ScrollArea>
         </Tabs>
       </div>
+
+      {/* Notification */}
+      {notification && (
+        <div className={`fixed bottom-6 right-6 z-[60] px-6 py-3 rounded-xl shadow-lg text-sm font-medium ${
+          notification.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+        }`}>
+          {notification.message}
+        </div>
+      )}
     </div>
   )
 }
