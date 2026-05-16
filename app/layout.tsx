@@ -3,9 +3,10 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import Chatbot from '@/components/Chatbot'
+import { Toaster } from 'sonner'
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const geist = Geist({ subsets: ["latin"] })
+const geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: 'Premier Auto Plus - Vehicle CRM',
@@ -37,9 +38,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="bg-background">
-      <body className="font-sans antialiased">
-<Chatbot />
+      <body className={`${geist.className} antialiased`}>
+        <Chatbot />
         {children}
+        
+        {/* Beautiful Toast Notifications */}
+        <Toaster 
+          position="top-center" 
+          richColors 
+          closeButton 
+          duration={4000}
+        />
+
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
