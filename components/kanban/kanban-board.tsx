@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { Toaster, toast } from "sonner"
 import {
   DndContext,
   DragOverlay,
@@ -18,19 +17,15 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { Plus, Search, Filter, Flame, Clock, UserCheck, DollarSign, CircleDot } from "lucide-react"
+import { Plus, Search, Filter } from "lucide-react"
 
 import { useCRM } from "@/lib/crm-context"
 import {
   Lead,
   PipelineStage,
   PIPELINE_STAGES,
-  getStatusColor,
-  getStatusLabel,
-  formatCurrency,
   getLeads,
 } from "@/lib/mock-data"
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -63,6 +58,15 @@ export function KanbanBoard() {
   const [activeFilter, setActiveFilter] = React.useState<FilterType>("all")
   const [activeId, setActiveId] = React.useState<string | null>(null)
   const [isAddLeadOpen, setIsAddLeadOpen] = React.useState(false)
+  const [notification, setNotification] = React.useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  // Auto-hide notification
+  React.useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [notification])
 
   // Load leads
   React.useEffect(() => {
@@ -138,7 +142,7 @@ export function KanbanBoard() {
     setIsDetailsPanelOpen(true)
   }
 
-  // ====================== ADD LEAD WITH NICE TOASTS ======================
+  // ====================== ADD LEAD ======================
   const handleAddLead = async (data: { 
     name: string; 
     phone: string; 
@@ -170,12 +174,9 @@ export function KanbanBoard() {
     setLeads((prev) => [newLead, ...prev])
     setIsAddLeadOpen(false)
 
-    toast.success("Lead added successfully!", {
-      description: `${data.name} has been added to New Lead stage.`,
-      duration: 3000,
-    })
+    setNotification({ message: `${data.name} added to New Lead`, type: 'success' })
 
-    // Try to save to database
+    // Try to save to database via proxy
     try {
       const response = await fetch('/api/leads', {
         method: "POST",
@@ -203,20 +204,27 @@ export function KanbanBoard() {
       })
 
       if (response.ok) {
-        toast.success("Saved to database", {
-          description: "Lead is now persisted.",
-        })
+        setNotification({ message: "Lead saved to database successfully!", type: 'success' })
       }
     } catch (err) {
-      console.error("Save to DB failed:", err)
-      toast.error("Saved locally only", {
-        description: "Could not save to database (CORS issue).",
-      })
+      console.error("Save failed:", err)
+      setNotification({ message: "Lead added locally (database save failed)", type: 'error' })
     }
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col relative">
+      {/* Notification */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 text-sm font-medium transition-all ${
+          notification.type === 'success' 
+            ? 'bg-green-600 text-white' 
+            : 'bg-red-600 text-white'
+        }`}>
+          {notification.message}
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 border-b p-4">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -267,7 +275,7 @@ export function KanbanBoard() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Lead</DialogTitle>
-              <DialogDescription>Will be saved to the database.</DialogDescription>
+              <DialogDescription>Will be added to New Lead stage.</DialogDescription>
             </DialogHeader>
             <AddLeadForm onSubmit={handleAddLead} onCancel={() => setIsAddLeadOpen(false)} />
           </DialogContent>
@@ -302,13 +310,11 @@ export function KanbanBoard() {
         </div>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
-
-      <Toaster position="top-center" richColors closeButton />
     </div>
   )
 }
 
-// AddLeadForm (unchanged)
+// AddLeadForm
 function AddLeadForm({
   onSubmit,
   onCancel,
@@ -355,7 +361,7 @@ function AddLeadForm({
       </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button type="submit">Add Lead to Database</Button>
+        <Button type="submit">Add Lead</Button>
       </DialogFooter>
     </form>
   )
