@@ -26,6 +26,15 @@ export function LeadDetailsPanel() {
 
   const [isEditing, setIsEditing] = React.useState(false)
   const [editedLead, setEditedLead] = React.useState<Lead | null>(null)
+  const [notification, setNotification] = React.useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  // Auto-hide notification
+  React.useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [notification])
 
   React.useEffect(() => {
     if (selectedLead) {
@@ -39,17 +48,47 @@ export function LeadDetailsPanel() {
   const handleSave = async () => {
     if (!editedLead) return
 
-    // Update local state
+    // Update local state immediately
     setLeads(prev => prev.map(l => l.id === editedLead.id ? editedLead : l))
 
-    // TODO: Add API update call here later
-    console.log("Lead updated:", editedLead)
+    try {
+      const response = await fetch('/api/leads', {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          TableName: "tbl_leads",
+          Item: {
+            lead_id: editedLead.id,
+            name: editedLead.name,
+            phone: editedLead.phone,
+            email: editedLead.email,
+            budget: editedLead.budget,
+            preferredVehicle: editedLead.preferredVehicle,
+            stage: editedLead.stage,
+            statuses: editedLead.statuses,
+            assignedRep: editedLead.assignedRep,
+            lastActivity: "Just now",
+            downPayment: editedLead.downPayment,
+            location: editedLead.location,
+            creditStatus: editedLead.creditStatus,
+            timeline: editedLead.timeline,
+            createdAt: editedLead.createdAt,
+          }
+        }),
+      })
+
+      if (response.ok) {
+        setNotification({ message: "✅ Lead updated and saved to database!", type: 'success' })
+      } else {
+        setNotification({ message: "Lead updated locally (database update failed)", type: 'error' })
+      }
+    } catch (err) {
+      console.error("Update failed:", err)
+      setNotification({ message: "Lead updated locally (database update failed)", type: 'error' })
+    }
 
     setSelectedLead(editedLead)
     setIsEditing(false)
-
-    // Simple notification
-    alert("✅ Lead updated successfully!")
   }
 
   const toggleStatus = (status: "hot" | "automation_paused" | "deposit_paid") => {
@@ -70,20 +109,29 @@ export function LeadDetailsPanel() {
     setTimeout(() => {
       setSelectedLead(null)
       setIsEditing(false)
+      setNotification(null)
     }, 300)
   }
 
   return (
-    <div className={`fixed inset-y-0 right-0 w-96 bg-background border-l shadow-xl transform transition-transform duration-300 ${isDetailsPanelOpen ? 'translate-x-0' : 'translate-x-full'} z-50`}>
+    <div className={`fixed inset-y-0 right-0 w-96 bg-background border-l shadow-2xl transform transition-transform duration-300 z-50 ${isDetailsPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
       <div className="flex h-full flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b p-4">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold">{editedLead.name}</h2>
-            <Badge variant="outline">{getStatusLabel(editedLead.statuses[0] || "new")}</Badge>
+            {editedLead.statuses.length > 0 && (
+              <Badge variant="outline" className={getStatusColor(editedLead.statuses[0])}>
+                {getStatusLabel(editedLead.statuses[0])}
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setIsEditing(!isEditing)}>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setIsEditing(!isEditing)}
+            >
               {isEditing ? <Save className="size-4" /> : <Edit2 className="size-4" />}
             </Button>
             <Button variant="ghost" size="sm" onClick={handleClose}>
@@ -104,14 +152,13 @@ export function LeadDetailsPanel() {
             <TabsContent value="overview" className="p-6 m-0">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
+                  <CardTitle className="flex justify-between items-center">
                     Lead Information
-                    {isEditing && <span className="text-sm text-muted-foreground">Editing Mode</span>}
+                    {isEditing && <span className="text-sm text-blue-600 font-medium">Editing Mode</span>}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {/* Editable Fields */}
-                  <div className="space-y-4">
+                  <div className="space-y-5">
                     <div>
                       <Label>Name</Label>
                       <Input 
@@ -142,7 +189,7 @@ export function LeadDetailsPanel() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label>Budget</Label>
+                        <Label>Budget ($)</Label>
                         <Input 
                           type="number"
                           value={editedLead.budget} 
@@ -182,7 +229,7 @@ export function LeadDetailsPanel() {
                   </div>
 
                   {/* Status Toggles */}
-                  <div className="space-y-4 pt-4 border-t">
+                  <div className="pt-4 border-t space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Flame className="size-4 text-orange-500" />
@@ -209,7 +256,7 @@ export function LeadDetailsPanel() {
                   </div>
 
                   {isEditing && (
-                    <Button onClick={handleSave} className="w-full">
+                    <Button onClick={handleSave} className="w-full mt-6">
                       <Save className="mr-2 size-4" />
                       Save Changes
                     </Button>
