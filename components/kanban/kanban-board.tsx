@@ -63,7 +63,7 @@ export function KanbanBoard() {
   const [activeId, setActiveId] = React.useState<string | null>(null)
   const [isAddLeadOpen, setIsAddLeadOpen] = React.useState(false)
 
-  // Load leads on mount
+  // Load leads
   React.useEffect(() => {
     if (leads.length === 0) {
       getLeads().then(setLeads).catch(console.error)
@@ -137,7 +137,7 @@ export function KanbanBoard() {
     setIsDetailsPanelOpen(true)
   }
 
-  // ====================== ADD LEAD WITH FULL LOGGING ======================
+  // ====================== ADD LEAD ======================
   const handleAddLead = async (data: { 
     name: string; 
     phone: string; 
@@ -171,51 +171,46 @@ export function KanbanBoard() {
 
     // Try to save to AWS
     try {
-      console.log("Sending POST to AWS...")
-
-      const payload = {
-        TableName: "tbl_leads",
-        Item: {
-          lead_id: newLeadId,
-          name: newLead.name,
-          phone: newLead.phone,
-          email: newLead.email,
-          budget: newLead.budget,
-          preferredVehicle: newLead.preferredVehicle,
-          stage: newLead.stage,
-          statuses: newLead.statuses,
-          assignedRep: newLead.assignedRep,
-          lastActivity: newLead.lastActivity,
-          downPayment: newLead.downPayment,
-          location: newLead.location,
-          creditStatus: newLead.creditStatus,
-          timeline: newLead.timeline,
-          createdAt: newLead.createdAt,
-        }
-      }
-
       const response = await fetch(
         "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            TableName: "tbl_leads",
+            Item: {
+              lead_id: newLeadId,
+              name: newLead.name,
+              phone: newLead.phone,
+              email: newLead.email,
+              budget: newLead.budget,
+              preferredVehicle: newLead.preferredVehicle,
+              stage: newLead.stage,
+              statuses: newLead.statuses,
+              assignedRep: newLead.assignedRep,
+              lastActivity: newLead.lastActivity,
+              downPayment: newLead.downPayment,
+              location: newLead.location,
+              creditStatus: newLead.creditStatus,
+              timeline: newLead.timeline,
+              createdAt: newLead.createdAt,
+            },
+          }),
         }
       )
 
       const responseText = await response.text()
 
-      console.log("POST Status:", response.status)
-      console.log("POST Response:", responseText)
-
       if (response.ok) {
-        alert("✅ Lead successfully saved to the database!")
+        console.log("✅ Saved successfully")
+        alert("Lead saved to database successfully!")
       } else {
-        alert(`❌ Failed to save to database (Status ${response.status})\n\nResponse: ${responseText}`)
+        console.warn("POST failed:", response.status, responseText)
+        alert(`Failed to save to database (Status ${response.status})`)
       }
     } catch (err: any) {
-      console.error("POST Request Failed:", err)
-      alert("❌ Could not save to database (CORS or network error). Lead was added locally.")
+      console.error("POST error:", err)
+      alert("Could not save to database (CORS issue). Lead added locally only.")
     }
   }
 
@@ -271,7 +266,7 @@ export function KanbanBoard() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Lead</DialogTitle>
-              <DialogDescription>Will attempt to save to database.</DialogDescription>
+              <DialogDescription>Will be added to New Lead column.</DialogDescription>
             </DialogHeader>
             <AddLeadForm onSubmit={handleAddLead} onCancel={() => setIsAddLeadOpen(false)} />
           </DialogContent>
@@ -357,7 +352,7 @@ function AddLeadForm({
       </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button type="submit">Add Lead to Database</Button>
+        <Button type="submit">Add Lead</Button>
       </DialogFooter>
     </form>
   )
