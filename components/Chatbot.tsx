@@ -36,7 +36,7 @@ export default function Chatbot() {
     if (isOpen && messages.length === 0) {
       setMessages([{
         id: 'welcome',
-        text: "Hi! I'm Maya, your Premier Auto Plus AI Assistant.\n\nTry:\n• Show all leads\n• Add new lead John Smith, phone 03001234567, budget 45000, Honda Civic",
+        text: "Hi! I'm Maya. Try these:\n• Show all leads\n• Add new lead John Smith, phone 03001234567, budget 45000, Honda Civic",
         isBot: true,
         timestamp: new Date()
       }]);
@@ -53,23 +53,40 @@ export default function Chatbot() {
     scrollToBottom();
   };
 
+  // Improved smart parser
   const parseLeadCreation = (text: string): Partial<Lead> => {
     const data: Partial<Lead> = {};
 
+    // Name
     const nameMatch = text.match(/([A-Z][a-z]+(?:\s[A-Z][a-z]+)+)/);
     if (nameMatch) data.name = nameMatch[0];
 
+    // Phone
     const phoneMatch = text.match(/(\+?\d{1,3}[-.\s]?)?(\d{3}[-.\s]?\d{3}[-.\s]?\d{4}|\d{10,})/);
     if (phoneMatch) data.phone = phoneMatch[0];
 
+    // Email
     const emailMatch = text.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
     if (emailMatch) data.email = emailMatch[0];
 
+    // Budget
     const budgetMatch = text.match(/budget[:\s]*\$?(\d{1,3}(?:,\d{3})*|\d+)/i);
     if (budgetMatch) data.budget = parseInt(budgetMatch[1].replace(/,/g, ''));
 
-    const vehicleMatch = text.match(/(?:wants?|for|vehicle|car|model)[:\s]*([A-Za-z0-9\s]+)/i);
+    // Vehicle - Improved matching
+    const vehicleMatch = text.match(/(?:wants?|for|vehicle|car|model|buy)[:\s]*([A-Za-z0-9\s]+)/i);
     if (vehicleMatch) data.preferredVehicle = vehicleMatch[1].trim();
+
+    // Fallback vehicle detection
+    if (!data.preferredVehicle) {
+      const commonVehicles = ['honda', 'toyota', 'civic', 'accord', 'camry', 'corolla', 'fortuner', 'hilux'];
+      for (const v of commonVehicles) {
+        if (text.toLowerCase().includes(v)) {
+          data.preferredVehicle = text.split(' ').find(word => word.toLowerCase().includes(v)) || v;
+          break;
+        }
+      }
+    }
 
     return data;
   };
@@ -104,7 +121,7 @@ export default function Chatbot() {
         addBotMessage("No leads found yet.");
         return;
       }
-      const list = leads.map(l => `• \( {l.name} ( \){l.stage}) - ${l.preferredVehicle} - $${l.budget}`).join('\n');
+      const list = leads.map(l => `• \( {l.name} ( \){l.stage}) - ${l.preferredVehicle} - \[ {l.budget}`).join('\n');
       addBotMessage(`Here are all current leads:\n\n${list}`);
       return;
     }
@@ -132,10 +149,8 @@ export default function Chatbot() {
           createdAt: new Date().toISOString(),
         };
 
-        // Add to UI
         setLeads(prev => [newLead, ...prev]);
 
-        // Save to database
         try {
           await fetch('/api/leads', {
             method: "POST",
@@ -149,12 +164,12 @@ export default function Chatbot() {
 
         await createWorkflowLog(newLead.id, "Lead Created", `Maya created: ${newLead.name}`, "success");
 
-        addBotMessage(`✅ Lead created successfully!\n\n**${newLead.name}** has been added to New Lead stage.`);
+        addBotMessage(`✅ Lead created successfully!\n\n**${newLead.name}**\nVehicle: ${newLead.preferredVehicle}\nBudget: \]{newLead.budget}`);
         return;
       }
     }
 
-    addBotMessage("I'm here to help! Try:\n• Show all leads\n• Add new lead John Smith, phone 03001234567, budget 45000, Honda Civic");
+    addBotMessage("Try these examples:\n• Show all leads\n• Add new lead Talha, phone 03001234567, budget 45000, Honda Civic");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
