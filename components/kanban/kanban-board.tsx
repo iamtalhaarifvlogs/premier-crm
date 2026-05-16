@@ -26,6 +26,7 @@ import {
   PIPELINE_STAGES,
   getLeads,
 } from "@/lib/mock-data"
+import { createWorkflowLog } from "@/lib/mock-data"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -60,7 +61,7 @@ export function KanbanBoard() {
   const [isAddLeadOpen, setIsAddLeadOpen] = React.useState(false)
   const [notification, setNotification] = React.useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
-  // Auto-hide notification
+  // Auto hide notification
   React.useEffect(() => {
     if (notification) {
       const timer = setTimeout(() => setNotification(null), 3000)
@@ -142,7 +143,7 @@ export function KanbanBoard() {
     setIsDetailsPanelOpen(true)
   }
 
-  // ====================== ADD LEAD ======================
+  // ====================== ADD LEAD WITH AUTO LOG ======================
   const handleAddLead = async (data: { 
     name: string; 
     phone: string; 
@@ -170,45 +171,36 @@ export function KanbanBoard() {
       createdAt: new Date().toISOString(),
     }
 
-    // Add to UI immediately
+    // Add to UI
     setLeads((prev) => [newLead, ...prev])
     setIsAddLeadOpen(false)
 
     setNotification({ message: `${data.name} added to New Lead`, type: 'success' })
 
-    // Try to save to database via proxy
+    // Auto Workflow Log
     try {
-      const response = await fetch('/api/leads', {
+      await createWorkflowLog(
+        newLeadId,
+        "Lead Created",
+        `New lead "${data.name}" added manually`,
+        "success"
+      )
+    } catch (e) {
+      console.error("Log creation failed", e)
+    }
+
+    // Save to database
+    try {
+      await fetch('/api/leads', {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           TableName: "tbl_leads",
-          Item: {
-            lead_id: newLeadId,
-            name: newLead.name,
-            phone: newLead.phone,
-            email: newLead.email,
-            budget: newLead.budget,
-            preferredVehicle: newLead.preferredVehicle,
-            stage: newLead.stage,
-            statuses: newLead.statuses,
-            assignedRep: newLead.assignedRep,
-            lastActivity: newLead.lastActivity,
-            downPayment: newLead.downPayment,
-            location: newLead.location,
-            creditStatus: newLead.creditStatus,
-            timeline: newLead.timeline,
-            createdAt: newLead.createdAt,
-          },
+          Item: { ...newLead, lead_id: newLeadId }
         }),
       })
-
-      if (response.ok) {
-        setNotification({ message: "Lead saved to database successfully!", type: 'success' })
-      }
     } catch (err) {
-      console.error("Save failed:", err)
-      setNotification({ message: "Lead added locally (database save failed)", type: 'error' })
+      console.error("Database save failed", err)
     }
   }
 
@@ -216,10 +208,8 @@ export function KanbanBoard() {
     <div className="flex h-full flex-col relative">
       {/* Notification */}
       {notification && (
-        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 text-sm font-medium transition-all ${
-          notification.type === 'success' 
-            ? 'bg-green-600 text-white' 
-            : 'bg-red-600 text-white'
+        <div className={`fixed top-6 right-6 z-50 px-6 py-3.5 rounded-xl shadow-xl text-sm font-medium ${
+          notification.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
         }`}>
           {notification.message}
         </div>
@@ -282,7 +272,6 @@ export function KanbanBoard() {
         </Dialog>
       </div>
 
-      {/* Kanban Board */}
       <ScrollArea className="flex-1">
         <div className="flex h-full gap-4 p-4">
           <DndContext
@@ -314,7 +303,7 @@ export function KanbanBoard() {
   )
 }
 
-// AddLeadForm
+// AddLeadForm (unchanged)
 function AddLeadForm({
   onSubmit,
   onCancel,
