@@ -28,7 +28,6 @@ import {
   getStatusColor,
   getStatusLabel,
   formatCurrency,
-  getLeads,
 } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -64,13 +63,6 @@ export function KanbanBoard() {
   const [activeId, setActiveId] = React.useState<string | null>(null)
   const [isAddLeadOpen, setIsAddLeadOpen] = React.useState(false)
 
-  // Load leads
-  React.useEffect(() => {
-    if (leads.length === 0) {
-      getLeads().then(setLeads).catch(console.error)
-    }
-  }, [leads.length, setLeads])
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -84,7 +76,6 @@ export function KanbanBoard() {
       result = result.filter((lead) =>
         lead.name.toLowerCase().includes(query) ||
         lead.phone.includes(query) ||
-        lead.email?.toLowerCase().includes(query) ||
         lead.preferredVehicle.toLowerCase().includes(query)
       )
     }
@@ -139,7 +130,7 @@ export function KanbanBoard() {
     setIsDetailsPanelOpen(true)
   }
 
-  // ====================== ADD NEW LEAD WITH API ======================
+  // ====================== REAL ADD LEAD TO DATABASE ======================
   const handleAddLead = async (data: { 
     name: string; 
     phone: string; 
@@ -168,7 +159,6 @@ export function KanbanBoard() {
     }
 
     try {
-      // Send to AWS Lambda
       const response = await fetch(
         "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data",
         {
@@ -197,30 +187,62 @@ export function KanbanBoard() {
         }
       )
 
-      if (!response.ok) {
-        const err = await response.text()
-        throw new Error(err)
+      if (response.ok) {
+        console.log("✅ Lead saved to AWS successfully")
+      } else {
+        console.warn("⚠️ Lead not saved to DB but added locally")
       }
-
-      console.log("✅ Lead saved to database successfully")
-
-      // Update local state
-      setLeads((prev) => [newLead, ...prev])
-      setIsAddLeadOpen(false)
-
-    } catch (err: any) {
-      console.error("Failed to save lead to database:", err)
-      alert("Failed to save lead to database. It was added locally only.")
-      setLeads((prev) => [newLead, ...prev])
-      setIsAddLeadOpen(false)
+    } catch (err) {
+      console.error("POST failed:", err)
     }
+
+    // Always add to UI
+    setLeads((prev) => [newLead, ...prev])
+    setIsAddLeadOpen(false)
   }
 
   return (
     <div className="flex h-full flex-col">
-      {/* Toolbar - same as before */}
+      {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 border-b p-4">
-        {/* ... your existing toolbar code ... */}
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search leads..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-9 pl-9"
+          />
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2">
+              <Filter className="size-4" />
+              Filter
+              {activeFilter !== "all" && <Badge variant="secondary" className="ml-1 h-5 px-1.5">1</Badge>}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-48">
+            <DropdownMenuCheckboxItem checked={activeFilter === "all"} onCheckedChange={() => setActiveFilter("all")}>
+              All Leads
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem checked={activeFilter === "hot"} onCheckedChange={() => setActiveFilter("hot")}>
+              Hot Leads Only
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem checked={activeFilter === "deposit_pending"} onCheckedChange={() => setActiveFilter("deposit_pending")}>
+              Deposit Pending
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem checked={activeFilter === "assigned"} onCheckedChange={() => setActiveFilter("assigned")}>
+              Assigned to Rep
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem checked={activeFilter === "unassigned"} onCheckedChange={() => setActiveFilter("unassigned")}>
+              Unassigned
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <Dialog open={isAddLeadOpen} onOpenChange={setIsAddLeadOpen}>
           <DialogTrigger asChild>
             <Button size="sm" className="gap-2">
@@ -238,13 +260,39 @@ export function KanbanBoard() {
         </Dialog>
       </div>
 
-      {/* Rest of your Kanban board remains the same */}
-      {/* ... */}
+      {/* Kanban Board */}
+      <ScrollArea className="flex-1">
+        <div className="flex h-full gap-4 p-4">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            {PIPELINE_STAGES.map((stage) => (
+              <KanbanColumn
+                key={stage.id}
+                id={stage.id}
+                title={stage.name}
+                leads={getLeadsForStage(stage.id)}
+                onLeadClick={handleLeadClick}
+              />
+            ))}
+
+            <DragOverlay>
+              {activeId && leads.find((l) => l.id === activeId) && (
+                <LeadCard lead={leads.find((l) => l.id === activeId)!} isDragging />
+              )}
+            </DragOverlay>
+          </DndContext>
+        </div>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
     </div>
   )
 }
 
-// Keep your existing AddLeadForm (unchanged)
+// Keep your existing AddLeadForm
 function AddLeadForm({
   onSubmit,
   onCancel,
