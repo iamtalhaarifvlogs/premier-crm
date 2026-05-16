@@ -137,7 +137,7 @@ export function KanbanBoard() {
     setIsDetailsPanelOpen(true)
   }
 
-  // Add Lead (Local + Attempt AWS)
+  // ====================== ADD LEAD WITH PROXY ======================
   const handleAddLead = async (data: { 
     name: string; 
     phone: string; 
@@ -169,48 +169,46 @@ export function KanbanBoard() {
     setLeads((prev) => [newLead, ...prev])
     setIsAddLeadOpen(false)
 
-    // Try to save to AWS (background)
+    // Save via proxy (server-side, bypasses CORS)
     try {
-      const response = await fetch(
-        "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            TableName: "tbl_leads",
-            Item: {
-              lead_id: newLeadId,
-              name: newLead.name,
-              phone: newLead.phone,
-              email: newLead.email,
-              budget: newLead.budget,
-              preferredVehicle: newLead.preferredVehicle,
-              stage: newLead.stage,
-              statuses: newLead.statuses,
-              assignedRep: newLead.assignedRep,
-              lastActivity: newLead.lastActivity,
-              downPayment: newLead.downPayment,
-              location: newLead.location,
-              creditStatus: newLead.creditStatus,
-              timeline: newLead.timeline,
-              createdAt: newLead.createdAt,
-            },
-          }),
-        }
-      )
+      const response = await fetch('/api/leads', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          TableName: "tbl_leads",
+          Item: {
+            lead_id: newLeadId,
+            name: newLead.name,
+            phone: newLead.phone,
+            email: newLead.email,
+            budget: newLead.budget,
+            preferredVehicle: newLead.preferredVehicle,
+            stage: newLead.stage,
+            statuses: newLead.statuses,
+            assignedRep: newLead.assignedRep,
+            lastActivity: newLead.lastActivity,
+            downPayment: newLead.downPayment,
+            location: newLead.location,
+            creditStatus: newLead.creditStatus,
+            timeline: newLead.timeline,
+            createdAt: newLead.createdAt,
+          },
+        }),
+      })
 
       if (response.ok) {
-        console.log("✅ Saved to database")
+        console.log("✅ Lead saved to database")
       } else {
-        console.warn("POST failed:", response.status)
+        console.warn("Save failed:", await response.text())
       }
     } catch (err) {
-      console.error("POST blocked:", err)
+      console.error("Proxy error:", err)
     }
   }
 
   return (
     <div className="flex h-full flex-col">
+      {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 border-b p-4">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -260,13 +258,14 @@ export function KanbanBoard() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Lead</DialogTitle>
-              <DialogDescription>Added to New Lead stage.</DialogDescription>
+              <DialogDescription>Will be saved to the database.</DialogDescription>
             </DialogHeader>
             <AddLeadForm onSubmit={handleAddLead} onCancel={() => setIsAddLeadOpen(false)} />
           </DialogContent>
         </Dialog>
       </div>
 
+      {/* Kanban Board */}
       <ScrollArea className="flex-1">
         <div className="flex h-full gap-4 p-4">
           <DndContext
@@ -298,6 +297,7 @@ export function KanbanBoard() {
   )
 }
 
+// AddLeadForm
 function AddLeadForm({
   onSubmit,
   onCancel,
@@ -344,7 +344,7 @@ function AddLeadForm({
       </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button type="submit">Add Lead</Button>
+        <Button type="submit">Add Lead to Database</Button>
       </DialogFooter>
     </form>
   )
