@@ -1,69 +1,83 @@
 import { Lead } from "./types";
+import { updateLead } from "./action-engine";
 
 export type WorkflowInput = {
-  message: string;
-  lead: Lead | null;
+  intent: string;
+  lead?: Lead | null;
+  input?: any;
 };
 
 export type WorkflowResult = {
   success: boolean;
   message: string;
-  updatedLead?: Lead | null;
 };
+
+/*
+|--------------------------------------------------------------------------
+| MAIN WORKFLOW ENTRY
+|--------------------------------------------------------------------------
+*/
 
 export async function processWorkflow(
   intent: string,
   lead: Lead | null,
-  input: WorkflowInput
-): Promise<WorkflowResult> {
-  const msg = input.message.toLowerCase();
+  input: any
+): Promise<WorkflowResult | null> {
+  if (!intent) return null;
 
-  if (!lead && intent !== "pipeline_summary") {
+  /*
+  |--------------------------------------------------------------------------
+  | PRICE OBJECTION
+  |--------------------------------------------------------------------------
+  */
+
+  if (intent === "price_objection" && lead) {
+    await updateLead(lead, {
+      statuses: [...(lead.statuses || []), "objection"],
+      lastActivity: "Price objection recorded",
+    });
+
     return {
-      success: false,
-      message: "No lead context found.",
+      success: true,
+      message: `${lead.name}'s price objection has been recorded.`,
     };
   }
 
-  switch (intent) {
-    case "show_lead":
-      return {
-        success: true,
-        message: `${lead?.name}
-Stage: ${lead?.stage}
-Vehicle: ${lead?.preferredVehicle}
-Budget: ${lead?.budget}`,
-      };
+  /*
+  |--------------------------------------------------------------------------
+  | QUALIFY LEAD
+  |--------------------------------------------------------------------------
+  */
 
-    case "qualify_lead":
-      return {
-        success: true,
-        message: `${lead?.name} marked as qualified.`,
-        updatedLead: lead
-          ? {
-              ...lead,
-              stage: "qualified",
-              statuses: [...lead.statuses, "qualified"],
-            }
-          : null,
-      };
+  if (intent === "qualify_lead" && lead) {
+    await updateLead(lead, {
+      stage: "qualified",
+      lastActivity: "Lead qualified by Maya",
+    });
 
-    case "price_objection":
-      return {
-        success: true,
-        message: `Price objection logged for ${lead?.name}.`,
-      };
-
-    case "add_note":
-      return {
-        success: true,
-        message: `Note added to ${lead?.name}.`,
-      };
-
-    default:
-      return {
-        success: false,
-        message: "No workflow matched for this intent.",
-      };
+    return {
+      success: true,
+      message: `${lead.name} has been qualified successfully.`,
+    };
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | MOVE TO SOURCING
+  |--------------------------------------------------------------------------
+  */
+
+  if (intent === "move_to_sourcing" && lead) {
+    await updateLead(lead, {
+      stage: "vehicle_sourcing",
+      lastActivity: "Moved to sourcing",
+    });
+
+    return {
+      success: true,
+      message: `${lead.name} moved to Vehicle Sourcing.`,
+    };
+  }
+
+  return null;
 }

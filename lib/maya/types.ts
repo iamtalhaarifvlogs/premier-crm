@@ -1,11 +1,7 @@
-export type CreditStatus =
-  | "good"
-  | "excellent"
-  | "fair"
-  | "poor";
+export type CreditStatus = "good" | "excellent" | "fair" | "poor";
 
 export interface Lead {
-  id: string;
+  id?: string;
   lead_id?: string;
 
   name: string;
@@ -21,11 +17,13 @@ export interface Lead {
   assignedRep: string | null;
 
   lastActivity: string;
-  downPayment: number;
 
+  downPayment: number;
   location: string;
+
   creditStatus: CreditStatus;
 
   timeline: string;
+
   createdAt: string;
 }

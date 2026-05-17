@@ -1,10 +1,25 @@
-import { PipelineStage } from "@/lib/mock-data"
+import { PipelineStage } from "@/lib/mock-data";
 
 export interface MayaIntent {
-  intent: string
-  confidence: number
-  entities?: Record<string, any>
+  intent: string;
+  confidence: number;
+
+  // 👇 IMPORTANT FIX: makes workflow engine safe
+  input?: string;
+
+  entities?: {
+    leadName?: string;
+    field?: string;
+    value?: string;
+    targetStage?: PipelineStage;
+  };
 }
+
+/*
+|--------------------------------------------------------------------------
+| STAGE MAP (for future workflow automation)
+|--------------------------------------------------------------------------
+*/
 
 const stageMap: Record<string, PipelineStage> = {
   sourcing: "vehicle_sourcing",
@@ -14,10 +29,22 @@ const stageMap: Record<string, PipelineStage> = {
   handoff: "rep_handoff",
   won: "closed_won",
   lost: "closed_lost",
-}
+};
+
+/*
+|--------------------------------------------------------------------------
+| INTENT DETECTION ENGINE
+|--------------------------------------------------------------------------
+*/
 
 export function detectIntent(message: string): MayaIntent {
-  const lower = message.toLowerCase()
+  const lower = message.toLowerCase();
+
+  /*
+  |--------------------------------------------------------------------------
+  | LIST / VIEW LEADS
+  |--------------------------------------------------------------------------
+  */
 
   if (
     lower.includes("all leads") ||
@@ -27,8 +54,15 @@ export function detectIntent(message: string): MayaIntent {
     return {
       intent: "show_all_leads",
       confidence: 0.95,
-    }
+      input: message,
+    };
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | HOT LEADS
+  |--------------------------------------------------------------------------
+  */
 
   if (
     lower.includes("hot leads") ||
@@ -37,8 +71,15 @@ export function detectIntent(message: string): MayaIntent {
     return {
       intent: "show_hot_leads",
       confidence: 0.95,
-    }
+      input: message,
+    };
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | PRICE OBJECTION
+  |--------------------------------------------------------------------------
+  */
 
   if (
     lower.includes("too expensive") ||
@@ -48,8 +89,15 @@ export function detectIntent(message: string): MayaIntent {
     return {
       intent: "price_objection",
       confidence: 0.97,
-    }
+      input: message,
+    };
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | DEPOSIT PAID
+  |--------------------------------------------------------------------------
+  */
 
   if (
     lower.includes("deposit paid") ||
@@ -58,15 +106,29 @@ export function detectIntent(message: string): MayaIntent {
     return {
       intent: "deposit_paid",
       confidence: 0.98,
-    }
+      input: message,
+    };
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | PIPELINE
+  |--------------------------------------------------------------------------
+  */
 
   if (lower.includes("pipeline summary")) {
     return {
       intent: "pipeline_summary",
       confidence: 0.95,
-    }
+      input: message,
+    };
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | MOVE STAGE
+  |--------------------------------------------------------------------------
+  */
 
   if (
     lower.includes("move") &&
@@ -75,11 +137,18 @@ export function detectIntent(message: string): MayaIntent {
     return {
       intent: "move_stage",
       confidence: 0.92,
+      input: message,
       entities: {
-        targetStage: "vehicle_sourcing",
+        targetStage: stageMap.sourcing,
       },
-    }
+    };
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | ASSIGN REP
+  |--------------------------------------------------------------------------
+  */
 
   if (
     lower.includes("assign") &&
@@ -88,8 +157,15 @@ export function detectIntent(message: string): MayaIntent {
     return {
       intent: "assign_rep",
       confidence: 0.9,
-    }
+      input: message,
+    };
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | CREATE LEAD
+  |--------------------------------------------------------------------------
+  */
 
   if (
     lower.includes("add lead") ||
@@ -99,8 +175,15 @@ export function detectIntent(message: string): MayaIntent {
     return {
       intent: "create_lead",
       confidence: 0.95,
-    }
+      input: message,
+    };
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | DELETE LEAD
+  |--------------------------------------------------------------------------
+  */
 
   if (
     lower.includes("delete lead") ||
@@ -109,11 +192,19 @@ export function detectIntent(message: string): MayaIntent {
     return {
       intent: "delete_lead",
       confidence: 0.95,
-    }
+      input: message,
+    };
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | FALLBACK
+  |--------------------------------------------------------------------------
+  */
 
   return {
     intent: "general_chat",
     confidence: 0.5,
-  }
+    input: message,
+  };
 }
