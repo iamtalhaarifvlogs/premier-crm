@@ -11,8 +11,6 @@ import {
   AlertTriangle,
   TrendingUp,
   TrendingDown,
-  Brain,
-  Activity,
   Car,
   Target,
   Lock,
@@ -72,26 +70,33 @@ export function DashboardContent({
   error,
 }: DashboardContentProps) {
   /*
-  |--------------------------------------------------------------------------
+  |------------------------------------------------------------------
   | LOGIN STATE
-  |--------------------------------------------------------------------------
+  |------------------------------------------------------------------
   */
 
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
   const [loginError, setLoginError] =
     React.useState("")
+
   const [isAuthenticated, setIsAuthenticated] =
     React.useState(false)
 
+  /*
+  |------------------------------------------------------------------
+  | LOGIN HANDLER
+  |------------------------------------------------------------------
+  */
+
   const handleLogin = (
-    e: React.FormEvent
+    e: React.FormEvent<HTMLFormElement>
   ) => {
     e.preventDefault()
 
     if (
-      email === "john@gmail.com" &&
-      password === "1234"
+      email.trim() === "john@gmail.com" &&
+      password.trim() === "1234"
     ) {
       setIsAuthenticated(true)
       setLoginError("")
@@ -104,72 +109,78 @@ export function DashboardContent({
   }
 
   /*
-  |--------------------------------------------------------------------------
-  | METRICS
-  |--------------------------------------------------------------------------
+  |------------------------------------------------------------------
+  | SAFE ARRAYS
+  |------------------------------------------------------------------
   */
 
-  const totalLeads = leads.length
+  const safeLeads = Array.isArray(leads)
+    ? leads
+    : []
 
-  const hotLeads = leads.filter((lead) =>
-    lead.statuses?.includes("hot")
+  const safeWorkflowLogs = Array.isArray(
+    workflowLogs
+  )
+    ? workflowLogs
+    : []
+
+  /*
+  |------------------------------------------------------------------
+  | METRICS
+  |------------------------------------------------------------------
+  */
+
+  const totalLeads = safeLeads.length
+
+  const hotLeads = safeLeads.filter((lead) =>
+    lead?.statuses?.includes("hot")
   ).length
 
-  const depositsPending = leads.filter(
+  const depositsPending = safeLeads.filter(
     (lead) =>
-      lead.stage === "deposit_requested" &&
-      !lead.statuses?.includes(
+      lead?.stage === "deposit_requested" &&
+      !lead?.statuses?.includes(
         "deposit_paid"
       )
   ).length
 
-  const depositsPaid = leads.filter((lead) =>
-    lead.statuses?.includes(
+  const depositsPaid = safeLeads.filter((lead) =>
+    lead?.statuses?.includes(
       "deposit_paid"
     )
   ).length
 
-  const repHandoffsToday = leads.filter(
-    (lead) =>
-      lead.statuses?.includes(
+  const repHandoffsToday =
+    safeLeads.filter((lead) =>
+      lead?.statuses?.includes(
         "rep_handoff"
       )
-  ).length
+    ).length
 
-  const coldLeads = leads.filter(
+  const coldLeads = safeLeads.filter(
     (lead) =>
-      lead.stage === "closed_lost" ||
-      lead.statuses?.includes("inactive")
+      lead?.stage === "closed_lost" ||
+      lead?.statuses?.includes("inactive")
   ).length
 
-  const qualifiedLeads = leads.filter(
+  const qualifiedLeads =
+    safeLeads.filter(
+      (lead) =>
+        lead?.statuses?.includes(
+          "qualified"
+        ) ||
+        lead?.stage === "qualified"
+    ).length
+
+  const sourcingLeads = safeLeads.filter(
     (lead) =>
-      lead.statuses?.includes(
-        "qualified"
-      ) || lead.stage === "qualified"
+      lead?.stage === "vehicle_sourcing"
   ).length
-
-  const sourcingLeads = leads.filter(
-    (lead) =>
-      lead.stage === "vehicle_sourcing"
-  ).length
-
-  const totalRevenue = leads
-    .filter((lead) =>
-      lead.statuses?.includes(
-        "deposit_paid"
-      )
-    )
-    .reduce(
-      (acc, lead) =>
-        acc + (lead.budget || 0),
-      0
-    )
 
   /*
-  |--------------------------------------------------------------------------
+  |------------------------------------------------------------------
   | CHART DATA
-  |--------------------------------------------------------------------------
+  |------------------------------------------------------------------
   */
 
   const leadsPerStageData =
@@ -179,9 +190,9 @@ export function DashboardContent({
         .slice(0, 2)
         .join(" "),
       fullName: stage.name,
-      count: leads.filter(
+      count: safeLeads.filter(
         (lead) =>
-          lead.stage === stage.id
+          lead?.stage === stage.id
       ).length,
     }))
 
@@ -214,13 +225,13 @@ export function DashboardContent({
   ]
 
   const recentWorkflowLogs =
-    workflowLogs
+    safeWorkflowLogs
       ?.slice(0, 6)
       ?.reverse() || []
 
   return (
-    <div className="relative min-h-screen">
-      {/* LOGIN OVERLAY */}
+    <div className="relative min-h-screen bg-background">
+      {/* LOGIN MODAL */}
 
       {!isAuthenticated && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-6">
@@ -307,16 +318,10 @@ export function DashboardContent({
                   </p>
 
                   <p className="mt-1">
-                    Email:
-                    {" "}
-                    john@gmail.com
+                    Email: john@gmail.com
                   </p>
 
-                  <p>
-                    Password:
-                    {" "}
-                    1234
-                  </p>
+                  <p>Password: 1234</p>
                 </div>
               </form>
             </div>
@@ -335,7 +340,7 @@ export function DashboardContent({
       >
         {/* HEADER */}
 
-        <div className="flex flex-col gap-2">
+        <div>
           <h1 className="text-3xl font-bold tracking-tight">
             CRM Dashboard
           </h1>
@@ -457,9 +462,7 @@ export function DashboardContent({
                   >
                     <CartesianGrid strokeDasharray="3 3" />
 
-                    <XAxis
-                      dataKey="name"
-                    />
+                    <XAxis dataKey="name" />
 
                     <YAxis />
 
@@ -472,12 +475,7 @@ export function DashboardContent({
                     <Bar
                       dataKey="count"
                       fill="hsl(var(--primary))"
-                      radius={[
-                        6,
-                        6,
-                        0,
-                        0,
-                      ]}
+                      radius={[6, 6, 0, 0]}
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -513,9 +511,7 @@ export function DashboardContent({
                       (entry, index) => (
                         <Cell
                           key={index}
-                          fill={
-                            entry.color
-                          }
+                          fill={entry.color}
                         />
                       )
                     )}
@@ -602,11 +598,15 @@ export function DashboardContent({
 
           <CardContent>
             <div className="space-y-4">
-              {leads
+              {safeLeads
                 .slice(0, 6)
-                .map((lead) => (
+                .map((lead, index) => (
                   <div
-                    key={lead.id}
+                    key={
+                      lead?.id ||
+                      lead?.lead_id ||
+                      index
+                    }
                     className="flex items-center justify-between rounded-xl border p-4"
                   >
                     <div className="flex items-center gap-4">
@@ -616,19 +616,18 @@ export function DashboardContent({
 
                       <div>
                         <p className="font-medium">
-                          {lead.name}
+                          {lead?.name ||
+                            "Unnamed Lead"}
                         </p>
 
                         <p className="text-sm text-muted-foreground">
-                          {
-                            PIPELINE_STAGES.find(
-                              (
-                                stage
-                              ) =>
-                                stage.id ===
-                                lead.stage
-                            )?.name
-                          }
+                          {PIPELINE_STAGES.find(
+                            (stage) =>
+                              stage.id ===
+                              lead?.stage
+                          )?.name ||
+                            lead?.stage ||
+                            "Unknown"}
                         </p>
                       </div>
                     </div>
@@ -636,20 +635,19 @@ export function DashboardContent({
                     <div className="text-right">
                       <p className="font-semibold">
                         {formatCurrency(
-                          lead.budget
+                          lead?.budget || 0
                         )}
                       </p>
 
                       <p className="text-xs text-muted-foreground">
-                        {
-                          lead.lastActivity
-                        }
+                        {lead?.lastActivity ||
+                          "No activity"}
                       </p>
                     </div>
                   </div>
                 ))}
 
-              {leads.length === 0 &&
+              {safeLeads.length === 0 &&
                 !error && (
                   <div className="py-12 text-center text-muted-foreground">
                     No leads available
@@ -668,8 +666,7 @@ export function DashboardContent({
             </CardTitle>
 
             <CardDescription>
-              Recent AI automation
-              activity
+              Recent AI automation activity
             </CardDescription>
           </CardHeader>
 
@@ -688,21 +685,19 @@ export function DashboardContent({
                     >
                       <div className="flex items-center justify-between">
                         <p className="font-medium">
-                          {log.action ||
+                          {log?.action ||
                             "Workflow Event"}
                         </p>
 
                         <span className="text-xs text-muted-foreground">
-                          {log.timestamp ||
+                          {log?.timestamp ||
                             "Now"}
                         </span>
                       </div>
 
-                      {log.message && (
+                      {log?.message && (
                         <p className="mt-1 text-sm text-muted-foreground">
-                          {
-                            log.message
-                          }
+                          {log.message}
                         </p>
                       )}
                     </div>
@@ -710,8 +705,7 @@ export function DashboardContent({
                 )
               ) : (
                 <p className="py-6 text-center text-muted-foreground">
-                  No workflow activity
-                  yet
+                  No workflow activity yet
                 </p>
               )}
             </div>
@@ -723,9 +717,9 @@ export function DashboardContent({
 }
 
 /*
-|--------------------------------------------------------------------------
+|------------------------------------------------------------------
 | METRIC CARD
-|--------------------------------------------------------------------------
+|------------------------------------------------------------------
 */
 
 interface MetricCardProps {
