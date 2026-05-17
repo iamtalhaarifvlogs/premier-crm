@@ -1,12 +1,9 @@
 // app/api/leads/route.ts
 
-import {
-  NextRequest,
-  NextResponse,
-} from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 
 const AWS_API =
-  "https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data";
+  'https://mlkqulvd22.execute-api.us-east-1.amazonaws.com/default/crm_data';
 
 /*
 |--------------------------------------------------------------------------
@@ -19,12 +16,12 @@ export async function GET() {
     const response = await fetch(
       `${AWS_API}?TableName=tbl_leads`,
       {
-        method: "GET",
+        method: 'GET',
         headers: {
-          "Content-Type":
-            "application/json",
+          'Content-Type':
+            'application/json',
         },
-        cache: "no-store",
+        cache: 'no-store',
       }
     );
 
@@ -32,34 +29,32 @@ export async function GET() {
       await response.text();
 
     console.log(
-      "GET Leads Response:",
+      'GET Leads Response:',
       response.status
     );
 
-    if (response.ok) {
-      const data =
-        JSON.parse(text);
-
-      const items =
-        data.Items || [];
-
+    if (!response.ok) {
       return NextResponse.json(
-        items
+        {
+          success: false,
+          error: text,
+        },
+        {
+          status:
+            response.status,
+        }
       );
     }
 
+    const data =
+      JSON.parse(text);
+
     return NextResponse.json(
-      {
-        success: false,
-        error: text,
-      },
-      {
-        status: response.status,
-      }
+      data.Items || []
     );
   } catch (error: any) {
     console.error(
-      "GET Leads Error:",
+      'GET Leads Error:',
       error
     );
 
@@ -68,9 +63,7 @@ export async function GET() {
         success: false,
         error: error.message,
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
@@ -88,43 +81,53 @@ export async function POST(
     const body =
       await request.json();
 
-    const response =
-      await fetch(AWS_API, {
-        method: "POST",
+    const payload = {
+      action: 'create',
+      ...body,
+    };
+
+    const response = await fetch(
+      AWS_API,
+      {
+        method: 'POST',
         headers: {
-          "Content-Type":
-            "application/json",
+          'Content-Type':
+            'application/json',
         },
-        body: JSON.stringify(body),
-      });
+        body: JSON.stringify(
+          payload
+        ),
+      }
+    );
 
     const text =
       await response.text();
 
     console.log(
-      "POST Response:",
+      'POST Response:',
       response.status,
       text
     );
 
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-      });
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: text,
+        },
+        {
+          status:
+            response.status,
+        }
+      );
     }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: text,
-      },
-      {
-        status: response.status,
-      }
-    );
+    return NextResponse.json({
+      success: true,
+    });
   } catch (error: any) {
     console.error(
-      "POST Error:",
+      'POST Error:',
       error
     );
 
@@ -133,9 +136,7 @@ export async function POST(
         success: false,
         error: error.message,
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
@@ -153,43 +154,53 @@ export async function PUT(
     const body =
       await request.json();
 
-    const response =
-      await fetch(AWS_API, {
-        method: "POST",
+    const payload = {
+      action: 'update',
+      ...body,
+    };
+
+    const response = await fetch(
+      AWS_API,
+      {
+        method: 'POST',
         headers: {
-          "Content-Type":
-            "application/json",
+          'Content-Type':
+            'application/json',
         },
-        body: JSON.stringify(body),
-      });
+        body: JSON.stringify(
+          payload
+        ),
+      }
+    );
 
     const text =
       await response.text();
 
     console.log(
-      "PUT Response:",
+      'PUT Response:',
       response.status,
       text
     );
 
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-      });
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: text,
+        },
+        {
+          status:
+            response.status,
+        }
+      );
     }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: text,
-      },
-      {
-        status: response.status,
-      }
-    );
+    return NextResponse.json({
+      success: true,
+    });
   } catch (error: any) {
     console.error(
-      "PUT Error:",
+      'PUT Error:',
       error
     );
 
@@ -198,9 +209,7 @@ export async function PUT(
         success: false,
         error: error.message,
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
@@ -218,99 +227,58 @@ export async function DELETE(
     const body =
       await request.json();
 
-    /*
-    |--------------------------------------------------------------------------
-    | VALIDATION
-    |--------------------------------------------------------------------------
-    */
-
-    if (!body.lead_id) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "lead_id is required",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | DELETE PAYLOAD
-    |--------------------------------------------------------------------------
-    */
-
-    const deletePayload = {
-      action: "delete",
-      TableName: "tbl_leads",
-      lead_id: body.lead_id,
+    const payload = {
+      action: 'delete',
+      ...body,
     };
 
     console.log(
-      "DELETE Payload:",
-      deletePayload
+      'DELETE Payload:',
+      payload
     );
 
-    /*
-    |--------------------------------------------------------------------------
-    | REQUEST
-    |--------------------------------------------------------------------------
-    */
-
-    const response =
-      await fetch(AWS_API, {
-        method: "POST",
+    const response = await fetch(
+      AWS_API,
+      {
+        method: 'POST',
         headers: {
-          "Content-Type":
-            "application/json",
+          'Content-Type':
+            'application/json',
         },
         body: JSON.stringify(
-          deletePayload
+          payload
         ),
-      });
+      }
+    );
 
     const text =
       await response.text();
 
     console.log(
-      "DELETE Response:",
+      'DELETE Response:',
       response.status,
       text
     );
 
-    /*
-    |--------------------------------------------------------------------------
-    | SUCCESS
-    |--------------------------------------------------------------------------
-    */
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-      });
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: text,
+        },
+        {
+          status:
+            response.status,
+        }
+      );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | FAILURE
-    |--------------------------------------------------------------------------
-    */
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: text,
-      },
-      {
-        status: response.status,
-      }
-    );
+    return NextResponse.json({
+      success: true,
+    });
   } catch (error: any) {
     console.error(
-      "DELETE Error:",
+      'DELETE Error:',
       error
     );
 
@@ -319,9 +287,7 @@ export async function DELETE(
         success: false,
         error: error.message,
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
