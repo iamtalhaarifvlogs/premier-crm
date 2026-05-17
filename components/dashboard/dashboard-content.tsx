@@ -11,10 +11,10 @@ import {
   AlertTriangle,
   TrendingUp,
   TrendingDown,
-  Car,
   Target,
   Lock,
   Mail,
+  Car,
 } from "lucide-react"
 
 import {
@@ -29,6 +29,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  Tooltip,
 } from "recharts"
 
 import {
@@ -45,12 +46,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart"
 
 interface DashboardContentProps {
   leads: any[]
@@ -70,33 +65,46 @@ export function DashboardContent({
   error,
 }: DashboardContentProps) {
   /*
-  |------------------------------------------------------------------
-  | LOGIN STATE
-  |------------------------------------------------------------------
+  |--------------------------------------------------------------------------
+  | HYDRATION FIX
+  |--------------------------------------------------------------------------
   */
 
-  const [email, setEmail] = React.useState("")
-  const [password, setPassword] = React.useState("")
+  const [mounted, setMounted] =
+    React.useState(false)
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  /*
+  |--------------------------------------------------------------------------
+  | LOGIN STATE
+  |--------------------------------------------------------------------------
+  */
+
+  const [email, setEmail] =
+    React.useState("")
+
+  const [password, setPassword] =
+    React.useState("")
+
   const [loginError, setLoginError] =
     React.useState("")
 
   const [isAuthenticated, setIsAuthenticated] =
     React.useState(false)
 
-  /*
-  |------------------------------------------------------------------
-  | LOGIN HANDLER
-  |------------------------------------------------------------------
-  */
+  if (!mounted) return null
 
   const handleLogin = (
-    e: React.FormEvent<HTMLFormElement>
+    e: React.FormEvent
   ) => {
     e.preventDefault()
 
     if (
-      email.trim() === "john@gmail.com" &&
-      password.trim() === "1234"
+      email === "john@gmail.com" &&
+      password === "1234"
     ) {
       setIsAuthenticated(true)
       setLoginError("")
@@ -109,62 +117,51 @@ export function DashboardContent({
   }
 
   /*
-  |------------------------------------------------------------------
-  | SAFE ARRAYS
-  |------------------------------------------------------------------
-  */
-
-  const safeLeads = Array.isArray(leads)
-    ? leads
-    : []
-
-  const safeWorkflowLogs = Array.isArray(
-    workflowLogs
-  )
-    ? workflowLogs
-    : []
-
-  /*
-  |------------------------------------------------------------------
+  |--------------------------------------------------------------------------
   | METRICS
-  |------------------------------------------------------------------
+  |--------------------------------------------------------------------------
   */
 
-  const totalLeads = safeLeads.length
+  const totalLeads = leads.length
 
-  const hotLeads = safeLeads.filter((lead) =>
-    lead?.statuses?.includes("hot")
+  const hotLeads = leads.filter(
+    (lead) =>
+      lead?.statuses?.includes("hot")
   ).length
 
-  const depositsPending = safeLeads.filter(
+  const depositsPending = leads.filter(
     (lead) =>
-      lead?.stage === "deposit_requested" &&
+      lead?.stage ===
+        "deposit_requested" &&
       !lead?.statuses?.includes(
         "deposit_paid"
       )
   ).length
 
-  const depositsPaid = safeLeads.filter((lead) =>
-    lead?.statuses?.includes(
-      "deposit_paid"
-    )
+  const depositsPaid = leads.filter(
+    (lead) =>
+      lead?.statuses?.includes(
+        "deposit_paid"
+      )
   ).length
 
   const repHandoffsToday =
-    safeLeads.filter((lead) =>
+    leads.filter((lead) =>
       lead?.statuses?.includes(
         "rep_handoff"
       )
     ).length
 
-  const coldLeads = safeLeads.filter(
+  const coldLeads = leads.filter(
     (lead) =>
       lead?.stage === "closed_lost" ||
-      lead?.statuses?.includes("inactive")
+      lead?.statuses?.includes(
+        "inactive"
+      )
   ).length
 
   const qualifiedLeads =
-    safeLeads.filter(
+    leads.filter(
       (lead) =>
         lead?.statuses?.includes(
           "qualified"
@@ -172,15 +169,16 @@ export function DashboardContent({
         lead?.stage === "qualified"
     ).length
 
-  const sourcingLeads = safeLeads.filter(
+  const sourcingLeads = leads.filter(
     (lead) =>
-      lead?.stage === "vehicle_sourcing"
+      lead?.stage ===
+      "vehicle_sourcing"
   ).length
 
   /*
-  |------------------------------------------------------------------
+  |--------------------------------------------------------------------------
   | CHART DATA
-  |------------------------------------------------------------------
+  |--------------------------------------------------------------------------
   */
 
   const leadsPerStageData =
@@ -190,7 +188,7 @@ export function DashboardContent({
         .slice(0, 2)
         .join(" "),
       fullName: stage.name,
-      count: safeLeads.filter(
+      count: leads.filter(
         (lead) =>
           lead?.stage === stage.id
       ).length,
@@ -224,14 +222,21 @@ export function DashboardContent({
     },
   ]
 
-  const recentWorkflowLogs =
-    safeWorkflowLogs
-      ?.slice(0, 6)
-      ?.reverse() || []
+  /*
+  |--------------------------------------------------------------------------
+  | SAFE WORKFLOW LOGS
+  |--------------------------------------------------------------------------
+  */
+
+  const recentWorkflowLogs = [
+    ...(workflowLogs || []),
+  ]
+    .slice(0, 6)
+    .reverse()
 
   return (
-    <div className="relative min-h-screen bg-background">
-      {/* LOGIN MODAL */}
+    <div className="relative min-h-screen">
+      {/* LOGIN OVERLAY */}
 
       {!isAuthenticated && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-6">
@@ -247,7 +252,7 @@ export function DashboardContent({
                 </h2>
 
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Login to access the dashboard
+                  Login to access dashboard
                 </p>
               </div>
 
@@ -314,14 +319,20 @@ export function DashboardContent({
 
                 <div className="rounded-xl bg-muted p-4 text-xs text-muted-foreground">
                   <p>
-                    Demo Credentials:
+                    Demo Credentials
                   </p>
 
                   <p className="mt-1">
-                    Email: john@gmail.com
+                    Email:
+                    {" "}
+                    john@gmail.com
                   </p>
 
-                  <p>Password: 1234</p>
+                  <p>
+                    Password:
+                    {" "}
+                    1234
+                  </p>
                 </div>
               </form>
             </div>
@@ -346,8 +357,7 @@ export function DashboardContent({
           </h1>
 
           <p className="text-muted-foreground">
-            AI-powered vehicle sales
-            pipeline overview
+            AI-powered vehicle sales pipeline overview
           </p>
         </div>
 
@@ -434,25 +444,16 @@ export function DashboardContent({
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>
-                Leads Per Pipeline Stage
+                Leads Per Stage
               </CardTitle>
 
               <CardDescription>
-                Current lead distribution
+                Current pipeline distribution
               </CardDescription>
             </CardHeader>
 
             <CardContent>
-              <ChartContainer
-                config={{
-                  count: {
-                    label: "Leads",
-                    color:
-                      "hsl(var(--primary))",
-                  },
-                }}
-                className="h-[320px]"
-              >
+              <div className="h-[320px] w-full">
                 <ResponsiveContainer
                   width="100%"
                   height="100%"
@@ -466,11 +467,7 @@ export function DashboardContent({
 
                     <YAxis />
 
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent />
-                      }
-                    />
+                    <Tooltip />
 
                     <Bar
                       dataKey="count"
@@ -479,7 +476,7 @@ export function DashboardContent({
                     />
                   </BarChart>
                 </ResponsiveContainer>
-              </ChartContainer>
+              </div>
             </CardContent>
           </Card>
 
@@ -494,36 +491,39 @@ export function DashboardContent({
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="flex items-center justify-center">
-              <ResponsiveContainer
-                width="100%"
-                height={300}
-              >
-                <PieChart>
-                  <Pie
-                    data={priorityData}
-                    dataKey="value"
-                    nameKey="name"
-                    outerRadius={100}
-                    label
-                  >
-                    {priorityData.map(
-                      (entry, index) => (
-                        <Cell
-                          key={index}
-                          fill={entry.color}
-                        />
-                      )
-                    )}
-                  </Pie>
+            <CardContent>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                >
+                  <PieChart>
+                    <Pie
+                      data={priorityData}
+                      dataKey="value"
+                      nameKey="name"
+                      outerRadius={100}
+                      label
+                    >
+                      {priorityData.map(
+                        (
+                          entry,
+                          index
+                        ) => (
+                          <Cell
+                            key={index}
+                            fill={
+                              entry.color
+                            }
+                          />
+                        )
+                      )}
+                    </Pie>
 
-                  <ChartTooltip
-                    content={
-                      <ChartTooltipContent />
-                    }
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -542,16 +542,7 @@ export function DashboardContent({
           </CardHeader>
 
           <CardContent>
-            <ChartContainer
-              config={{
-                followUps: {
-                  label: "Follow-ups",
-                  color:
-                    "hsl(var(--chart-2))",
-                },
-              }}
-              className="h-[300px]"
-            >
+            <div className="h-[300px] w-full">
               <ResponsiveContainer
                 width="100%"
                 height="100%"
@@ -565,11 +556,7 @@ export function DashboardContent({
 
                   <YAxis />
 
-                  <ChartTooltip
-                    content={
-                      <ChartTooltipContent />
-                    }
-                  />
+                  <Tooltip />
 
                   <Line
                     type="monotone"
@@ -579,7 +566,7 @@ export function DashboardContent({
                   />
                 </LineChart>
               </ResponsiveContainer>
-            </ChartContainer>
+            </div>
           </CardContent>
         </Card>
 
@@ -588,7 +575,7 @@ export function DashboardContent({
         <Card>
           <CardHeader>
             <CardTitle>
-              Recent Pipeline Activity
+              Recent Activity
             </CardTitle>
 
             <CardDescription>
@@ -598,14 +585,13 @@ export function DashboardContent({
 
           <CardContent>
             <div className="space-y-4">
-              {safeLeads
+              {leads
                 .slice(0, 6)
-                .map((lead, index) => (
+                .map((lead) => (
                   <div
                     key={
-                      lead?.id ||
-                      lead?.lead_id ||
-                      index
+                      lead.id ||
+                      lead.lead_id
                     }
                     className="flex items-center justify-between rounded-xl border p-4"
                   >
@@ -616,18 +602,19 @@ export function DashboardContent({
 
                       <div>
                         <p className="font-medium">
-                          {lead?.name ||
-                            "Unnamed Lead"}
+                          {lead.name}
                         </p>
 
                         <p className="text-sm text-muted-foreground">
-                          {PIPELINE_STAGES.find(
-                            (stage) =>
-                              stage.id ===
-                              lead?.stage
-                          )?.name ||
-                            lead?.stage ||
-                            "Unknown"}
+                          {
+                            PIPELINE_STAGES.find(
+                              (
+                                stage
+                              ) =>
+                                stage.id ===
+                                lead.stage
+                            )?.name
+                          }
                         </p>
                       </div>
                     </div>
@@ -635,19 +622,23 @@ export function DashboardContent({
                     <div className="text-right">
                       <p className="font-semibold">
                         {formatCurrency(
-                          lead?.budget || 0
+                          Number(
+                            lead.budget ||
+                              0
+                          )
                         )}
                       </p>
 
                       <p className="text-xs text-muted-foreground">
-                        {lead?.lastActivity ||
-                          "No activity"}
+                        {
+                          lead.lastActivity
+                        }
                       </p>
                     </div>
                   </div>
                 ))}
 
-              {safeLeads.length === 0 &&
+              {leads.length === 0 &&
                 !error && (
                   <div className="py-12 text-center text-muted-foreground">
                     No leads available
@@ -666,7 +657,7 @@ export function DashboardContent({
             </CardTitle>
 
             <CardDescription>
-              Recent AI automation activity
+              Recent automation activity
             </CardDescription>
           </CardHeader>
 
@@ -685,19 +676,21 @@ export function DashboardContent({
                     >
                       <div className="flex items-center justify-between">
                         <p className="font-medium">
-                          {log?.action ||
+                          {log.action ||
                             "Workflow Event"}
                         </p>
 
                         <span className="text-xs text-muted-foreground">
-                          {log?.timestamp ||
+                          {log.timestamp ||
                             "Now"}
                         </span>
                       </div>
 
-                      {log?.message && (
+                      {log.message && (
                         <p className="mt-1 text-sm text-muted-foreground">
-                          {log.message}
+                          {
+                            log.message
+                          }
                         </p>
                       )}
                     </div>
@@ -717,9 +710,9 @@ export function DashboardContent({
 }
 
 /*
-|------------------------------------------------------------------
+|--------------------------------------------------------------------------
 | METRIC CARD
-|------------------------------------------------------------------
+|--------------------------------------------------------------------------
 */
 
 interface MetricCardProps {
