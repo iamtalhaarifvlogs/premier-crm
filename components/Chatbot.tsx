@@ -1704,7 +1704,7 @@ Try:
       </button>
 
       {isOpen && (
-        <div className="fixed bottom-20 right-4 z-50 flex h-[680px] w-[95%] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl md:right-6 md:w-[430px]">
+        <div className="fixed bottom-20 right-4 z-50 flex max-h-[calc(100vh-32px)] w-[95%] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl md:right-6 md:w-[430px]">
           <div className="flex items-center justify-between bg-blue-600 p-4 text-white">
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-white/20 p-2">
