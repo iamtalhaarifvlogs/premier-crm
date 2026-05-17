@@ -1,52 +1,31 @@
-import { Lead } from '@/lib/mock-data'
+export type CreditStatus =
+  | "good"
+  | "excellent"
+  | "fair"
+  | "poor";
 
-export interface MayaResponse {
-  reply: string
+export interface Lead {
+  id: string;
+  lead_id?: string;
 
-  actions?: MayaAction[]
+  name: string;
+  phone: string;
+  email: string;
 
-  leadUpdates?: {
-    leadId: string
-    updates: Partial<Lead>
-  }[]
+  budget: number;
+  preferredVehicle: string;
 
-  createLead?: Partial<Lead>
+  stage: string;
+  statuses: string[];
 
-  deleteLeadId?: string
+  assignedRep: string | null;
 
-  workflowLogs?: WorkflowLogInput[]
+  lastActivity: string;
+  downPayment: number;
 
-  notifications?: NotificationInput[]
+  location: string;
+  creditStatus: CreditStatus;
 
-  memoryUpdates?: MayaMemoryInput[]
-}
-
-export interface MayaAction {
-  type:
-    | 'create_lead'
-    | 'update_lead'
-    | 'delete_lead'
-    | 'move_stage'
-    | 'log_objection'
-    | 'assign_rep'
-    | 'notify_rep'
-}
-
-export interface WorkflowLogInput {
-  lead_id: string
-  type: string
-  message: string
-  stage?: string
-}
-
-export interface NotificationInput {
-  lead_id: string
-  rep: string
-  message: string
-}
-
-export interface MayaMemoryInput {
-  lead_id: string
-  context_type: string
-  content: string
+  timeline: string;
+  createdAt: string;
 }

@@ -1,52 +1,69 @@
-import { Lead } from "@/lib/mock-data"
-import {
-  createWorkflowLog,
-  moveLeadStage,
-} from "./actions"
+import { Lead } from "./types";
+
+export type WorkflowInput = {
+  message: string;
+  lead: Lead | null;
+};
+
+export type WorkflowResult = {
+  success: boolean;
+  message: string;
+  updatedLead?: Lead | null;
+};
 
 export async function processWorkflow(
   intent: string,
-  lead?: Lead
-) {
-  if (!lead) return null
+  lead: Lead | null,
+  input: WorkflowInput
+): Promise<WorkflowResult> {
+  const msg = input.message.toLowerCase();
 
-  if (intent === "price_objection") {
-    await moveLeadStage(lead, "vehicle_sourcing")
-
-    await createWorkflowLog({
-      lead_id: lead.id,
-      timestamp: new Date().toISOString(),
-      event_type: "price_objection",
-      performed_by: "maya",
-      message: `${lead.name} objected to pricing. Lead moved to sourcing.`,
-    })
-
+  if (!lead && intent !== "pipeline_summary") {
     return {
-      success: true,
-      message:
-        `${lead.name} has been moved into vehicle sourcing. ` +
-        `I also logged the pricing objection for the sales team.`,
-    }
+      success: false,
+      message: "No lead context found.",
+    };
   }
 
-  if (intent === "deposit_paid") {
-    await moveLeadStage(lead, "deposit_paid")
+  switch (intent) {
+    case "show_lead":
+      return {
+        success: true,
+        message: `${lead?.name}
+Stage: ${lead?.stage}
+Vehicle: ${lead?.preferredVehicle}
+Budget: ${lead?.budget}`,
+      };
 
-    await createWorkflowLog({
-      lead_id: lead.id,
-      timestamp: new Date().toISOString(),
-      event_type: "deposit_paid",
-      performed_by: "maya",
-      message: `Deposit marked as paid for ${lead.name}`,
-    })
+    case "qualify_lead":
+      return {
+        success: true,
+        message: `${lead?.name} marked as qualified.`,
+        updatedLead: lead
+          ? {
+              ...lead,
+              stage: "qualified",
+              statuses: [...lead.statuses, "qualified"],
+            }
+          : null,
+      };
 
-    return {
-      success: true,
-      message:
-        `Deposit payment recorded for ${lead.name}. ` +
-        `Lead has been moved into the deposit paid stage.`,
-    }
+    case "price_objection":
+      return {
+        success: true,
+        message: `Price objection logged for ${lead?.name}.`,
+      };
+
+    case "add_note":
+      return {
+        success: true,
+        message: `Note added to ${lead?.name}.`,
+      };
+
+    default:
+      return {
+        success: false,
+        message: "No workflow matched for this intent.",
+      };
   }
-
-  return null
 }

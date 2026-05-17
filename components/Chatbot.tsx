@@ -83,6 +83,8 @@ type PendingAction =
         | 'complete';
     };
 
+    
+
 const STAGE_LABELS: Record<string, string> = {
   new_lead: 'New Lead',
   maya_qualification:
@@ -836,12 +838,20 @@ The lead is now ready for sourcing evaluation.`
 Reply with "confirm" to create this lead.`
           );
 
-          setPendingAction({
-            ...flow,
-            step: 'confirm',
-            data: finalData,
-          });
-
+          
+        setPendingAction({
+  ...flow,
+  step: "confirm",
+  data: {
+    ...finalData,
+    creditStatus:
+      (finalData.creditStatus as
+        | "good"
+        | "excellent"
+        | "fair"
+        | "poor") || "good",
+  },
+});
           return;
         }
 
@@ -1313,7 +1323,7 @@ These alternatives align closely with the buyer's budget and preferences.`
 
         const hotLeads =
           freshLeads.filter(
-            (l) =>
+            (l: { statuses: string | string[]; }) =>
               l.statuses.includes(
                 'hot'
               )
@@ -1321,7 +1331,7 @@ These alternatives align closely with the buyer's budget and preferences.`
 
         const deposits =
           freshLeads.filter(
-            (l) =>
+            (l: { statuses: string | string[]; }) =>
               l.statuses.includes(
                 'deposit_paid'
               )
@@ -1329,7 +1339,7 @@ These alternatives align closely with the buyer's budget and preferences.`
 
         const sourcing =
           freshLeads.filter(
-            (l) =>
+            (l: { stage: string; }) =>
               l.stage ===
               'vehicle_sourcing'
           ).length;
@@ -1337,8 +1347,8 @@ These alternatives align closely with the buyer's budget and preferences.`
         const pipelineValue =
           freshLeads.reduce(
             (
-              sum,
-              lead
+              sum: any,
+              lead: { budget: any; }
             ) =>
               sum +
               lead.budget,
@@ -1482,7 +1492,7 @@ Reply with "yes" to confirm.`
             .slice(0, 10)
             .map(
               (
-                lead
+                lead: { name: any; preferredVehicle: any; budget: number; stage: string; }
               ) => `👤 ${
                 lead.name
               }
