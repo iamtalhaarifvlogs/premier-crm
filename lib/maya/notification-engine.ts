@@ -1,5 +1,15 @@
-export async function createNotification(notification: any) {
-  console.log('[NOTIFICATION]', notification)
+export type NotificationPayload = {
+  title: string
+  message: string
+  type?: "info" | "success" | "warning"
+}
 
-  // Future: email / WhatsApp / SMS hooks
+export async function createNotification(
+  payload: NotificationPayload
+) {
+  console.log("MAYA NOTIFICATION", payload)
+
+  return {
+    success: true,
+  }
 }

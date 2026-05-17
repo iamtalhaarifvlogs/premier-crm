@@ -15,12 +15,7 @@ export async function createTimelineEvent(
     },
     body: JSON.stringify({
       TableName: "tbl_timeline",
-      Item: {
-        ...event,
-        createdAt:
-          event.createdAt ||
-          new Date().toISOString(),
-      },
+      Item: event,
     }),
   })
 }
